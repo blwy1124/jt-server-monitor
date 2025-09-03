@@ -1,0 +1,26 @@
+server:
+  port: 44755
+spring:
+  pf4j:
+    enabled: true
+    path: ./plugins
+  thymeleaf:
+    prefix: classpath:/templates/
+    encoding: UTF-8
+    cache: false
+    suffix: .html
+    servlet:
+      content-type: text/html
+logging:
+  level:
+    root: INFO
+  file:
+    name: logs/global/application.log
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{50}] - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{50}] - %msg%n"
+  logback:
+    rollingpolicy:
+      max-history: 30
+      file-name-pattern: logs/global/application.%d{yyyy-MM-dd}.%i.gz
+

@@ -1,0 +1,16 @@
+server:
+  port: 44755
+spring:
+  pf4j:
+    enabled: true
+    path: D:/IdeaProject/jt-server-monitor/monitor-plugins-manager/manager/plugins
+  thymeleaf:
+    prefix: classpath:/templates/
+    encoding: UTF-8
+    cache: false
+    suffix: .html
+    servlet:
+      content-type: text/html
+logging:
+  level:
+    org.pf4j: debug

@@ -15,7 +15,7 @@
 
     <properties>
         <plugin.class>com.jt.plugins.JvmToolsPlugin</plugin.class>
-        <plugin.version>1.0.0</plugin.version>
+        <plugin.version>1.0.1</plugin.version>
         <plugin.provider>qb</plugin.provider>
     </properties>
     <dependencies>

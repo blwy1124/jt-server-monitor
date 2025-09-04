@@ -114,6 +114,12 @@ public class ResultMsg<T> implements Serializable {
         result.setMessage("");
         return result;
     }
+    public static <T> ResultMsg<T> successMsg(String message) {
+        ResultMsg<T> result = new ResultMsg<>();
+        result.setState(1);
+        result.setMessage(message);
+        return result;
+    }
 
     public static <T> ResultMsg<T> success(T data, String message) {
         ResultMsg<T> result = new ResultMsg<>();

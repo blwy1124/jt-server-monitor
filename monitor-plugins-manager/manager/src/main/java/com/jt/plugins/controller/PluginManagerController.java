@@ -1,81 +1,109 @@
 package com.jt.plugins.controller;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.jt.plugins.common.http.ExtensionRequestParam;
 import com.jt.plugins.common.result.ResultMsg;
-import com.jt.plugins.config.Pf4jManagerProperties;
 import com.jt.plugins.service.PluginManagerService;
-import org.pf4j.PluginManager;
 import org.pf4j.PluginState;
-import org.pf4j.PluginWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * @author blwy_qb
+ * @description 插件管理控制器
  */
 @RestController
 @RequestMapping("plugin")
 public class PluginManagerController {
 
+    private static final Logger logger = LoggerFactory.getLogger(PluginManagerController.class);
 
     @Autowired
     private PluginManagerService pluginManagerService;
 
+    /**
+     * 上传插件文件
+     */
     @PostMapping("upload")
     public ResultMsg<JSONObject> uploadPlugin(@RequestParam("file") MultipartFile file) throws IOException {
         return pluginManagerService.uploadPlugin(file);
     }
 
-    @GetMapping("reload")
+    /**
+     * 重新加载所有插件
+     */
+    @PostMapping("reload")
     public ResultMsg<JSONObject> reloadPlugins() {
         return pluginManagerService.reloadPlugins();
     }
 
-    @GetMapping("load")
-    public ResultMsg<String> loadPlugin(@RequestParam() String pluginId) {
-        return pluginManagerService.loadPlugin(pluginId);
+    /**
+     * 加载指定插件
+     */
+    @PostMapping("load")
+    public ResultMsg<String> loadPlugin(@RequestBody ExtensionRequestParam request) {
+        return pluginManagerService.loadPlugin(request);
     }
 
-    @GetMapping("unload")
-    public ResultMsg<JSONObject> unloadPlugin(@RequestParam() String pluginId) {
-        return pluginManagerService.unloadPlugin(pluginId);
+    /**
+     * 卸载指定插件
+     */
+    @PostMapping("unload")
+    public ResultMsg<JSONObject> unloadPlugin(@RequestBody ExtensionRequestParam request) {
+        return pluginManagerService.unloadPlugin(request);
     }
 
-    @GetMapping("start")
-    public ResultMsg<PluginState> startPlugin(@RequestParam() String pluginId) {
-        return pluginManagerService.startPlugin(pluginId);
+    /**
+     * 启动指定插件
+     */
+    @PostMapping("start")
+    public ResultMsg<PluginState> startPlugin(@RequestBody ExtensionRequestParam request) {
+        return pluginManagerService.startPlugin(request);
     }
 
-    @GetMapping("stop")
-    public ResultMsg<PluginState> stopPlugin(@RequestParam() String pluginId) {
-        return pluginManagerService.stopPlugin(pluginId);
+    /**
+     * 停止指定插件
+     */
+    @PostMapping("stop")
+    public ResultMsg<PluginState> stopPlugin(@RequestBody ExtensionRequestParam request) {
+        return pluginManagerService.stopPlugin(request);
     }
 
-    @GetMapping("disable")
-    public ResultMsg<JSONObject> disablePlugin(@RequestParam() String pluginId) {
-        return pluginManagerService.disablePlugin(pluginId);
+    /**
+     * 禁用指定插件
+     */
+    @PostMapping("disable")
+    public ResultMsg<JSONObject> disablePlugin(@RequestBody ExtensionRequestParam request) {
+        return pluginManagerService.disablePlugin(request);
     }
 
-    @GetMapping("enable")
-    public ResultMsg<JSONObject> enablePlugin(@RequestParam() String pluginId) {
-        return pluginManagerService.enablePlugin(pluginId);
+    /**
+     * 启用指定插件
+     */
+    @PostMapping("enable")
+    public ResultMsg<JSONObject> enablePlugin(@RequestBody ExtensionRequestParam request) {
+        return pluginManagerService.enablePlugin(request);
     }
 
-    @GetMapping("delete")
-    public ResultMsg<JSONObject> deletePlugin(@RequestParam() String pluginId) {
-        return pluginManagerService.deletePlugin(pluginId);
+    /**
+     * 删除指定插件
+     */
+    @PostMapping("delete")
+    public ResultMsg<JSONObject> deletePlugin(@RequestBody ExtensionRequestParam request) {
+        return pluginManagerService.deletePlugin(request);
     }
 
-    @GetMapping("list")
+    /**
+     * 获取插件列表
+     */
+    @PostMapping("list")
     public ResultMsg<List<JSONObject>> listPlugin() {
         return pluginManagerService.getPlugins();
     }
-
 }

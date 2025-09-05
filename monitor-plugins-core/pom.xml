@@ -4,12 +4,12 @@
     <parent>
         <groupId>com.jt.plugins</groupId>
         <artifactId>jt-server-monitor</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>${app.version}</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>monitor-plugins-core</artifactId>
     <packaging>jar</packaging>
-
     <name>monitor-plugins-core</name>
 
     <dependencies>

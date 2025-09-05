@@ -8,6 +8,7 @@ import com.jt.plugins.common.http.ExtensionRequestParam;
 import com.jt.plugins.common.log.PluginLogger;
 import com.jt.plugins.common.result.ResultMsg;
 import com.jt.plugins.utils.attach.AttachApiUtil;
+import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
 
 import javax.management.remote.JMXConnector;
@@ -80,7 +81,20 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
                 return result;
             } catch (Exception e) {
                 logger.error("执行JVM监控操作失败: {}", targetAction, e);
-                return ResultMsg.fail("执行操作失败: " + e.getMessage());
+                // 区分不同类型的异常并抛出相应的错误信息
+                Throwable cause = e.getCause();
+                if (cause != null) {
+                    if (cause instanceof SecurityException) {
+                        return ResultMsg.fail("权限不足，无法访问目标JVM进程：" + cause.getMessage());
+                    } else if (cause instanceof IllegalArgumentException) {
+                        return ResultMsg.fail("参数错误：" + cause.getMessage());
+                    } else if (cause instanceof IllegalStateException) {
+                        return ResultMsg.fail("状态错误：" + cause.getMessage());
+                    } else {
+                        return ResultMsg.fail("执行操作失败：" + cause.getMessage());
+                    }
+                }
+                return ResultMsg.fail("执行操作失败：" + e.getMessage());
             }
         }
 
@@ -91,7 +105,12 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
     @ActionHandler("ping")
     private ResultMsg<JSONObject> handlePing(ExtensionRequestParam request) {
         logger.debug("处理ping请求");
-        return ResultMsg.success(new JSONObject(), "Pong");
+        try {
+            return ResultMsg.success(new JSONObject(), "Pong");
+        } catch (Exception e) {
+            logger.error("处理ping请求失败", e);
+            return ResultMsg.fail("处理ping请求失败：" + e.getMessage());
+        }
     }
 
     /**
@@ -102,7 +121,7 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
         logger.info("开始获取Java进程信息");
         try {
             // 使用Attach API获取所有可连接的Java进程
-            List<VirtualMachineDescriptor> vms = com.sun.tools.attach.VirtualMachine.list();
+            List<VirtualMachineDescriptor> vms = VirtualMachine.list();
             JSONArray processes = new JSONArray();
 
             for (com.sun.tools.attach.VirtualMachineDescriptor vm : vms) {
@@ -120,7 +139,14 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
             return ResultMsg.success(result, "Java进程信息获取成功");
         } catch (Exception e) {
             logger.error("获取Java进程信息失败", e);
-            return ResultMsg.fail("获取Java进程信息失败：" + e.getMessage());
+            // 根据异常类型返回更具体的错误信息
+            if (e instanceof SecurityException) {
+                return ResultMsg.fail("权限不足，无法获取Java进程列表：" + e.getMessage());
+            } else if (e instanceof RuntimeException) {
+                return ResultMsg.fail("获取Java进程列表时发生运行时错误：" + e.getMessage());
+            } else {
+                return ResultMsg.fail("获取Java进程信息失败：" + e.getMessage());
+            }
         }
     }
 
@@ -152,7 +178,16 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
             return ResultMsg.success(jvmInfo, "JVM信息获取成功");
         } catch (Exception e) {
             logger.error("获取JVM信息失败，PID: {}", pid, e);
-            return ResultMsg.fail("获取JVM信息失败：" + e.getMessage());
+            // 根据异常类型返回更具体的错误信息
+            if (e instanceof SecurityException) {
+                return ResultMsg.fail("权限不足，无法连接到目标JVM进程：" + e.getMessage());
+            } else if (e instanceof IllegalArgumentException) {
+                return ResultMsg.fail("无效的PID参数：" + e.getMessage());
+            } else if (e instanceof IllegalStateException) {
+                return ResultMsg.fail("无法连接到目标JVM进程，可能进程已终止：" + e.getMessage());
+            } else {
+                return ResultMsg.fail("获取JVM信息失败：" + e.getMessage());
+            }
         }
     }
 
@@ -184,7 +219,16 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
             return ResultMsg.success(new JSONObject(), "GC触发成功");
         } catch (Exception e) {
             logger.error("触发GC失败，PID: {}", pid, e);
-            return ResultMsg.fail("触发GC失败：" + e.getMessage());
+            // 根据异常类型返回更具体的错误信息
+            if (e instanceof SecurityException) {
+                return ResultMsg.fail("权限不足，无法触发目标JVM进程的GC：" + e.getMessage());
+            } else if (e instanceof IllegalArgumentException) {
+                return ResultMsg.fail("无效的PID参数：" + e.getMessage());
+            } else if (e instanceof IllegalStateException) {
+                return ResultMsg.fail("无法连接到目标JVM进程，可能进程已终止：" + e.getMessage());
+            } else {
+                return ResultMsg.fail("触发GC失败：" + e.getMessage());
+            }
         }
     }
 
@@ -241,7 +285,18 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
             return ResultMsg.success(data, "堆内存Dump成功，文件路径：" + resultPath);
         } catch (Exception e) {
             logger.error("堆内存Dump失败", e);
-            return ResultMsg.fail("堆内存Dump失败：" + e.getMessage());
+            // 根据异常类型返回更具体的错误信息
+            if (e instanceof SecurityException) {
+                return ResultMsg.fail("权限不足，无法执行堆转储：" + e.getMessage());
+            } else if (e instanceof IllegalArgumentException) {
+                return ResultMsg.fail("参数错误：" + e.getMessage());
+            } else if (e instanceof IllegalStateException) {
+                return ResultMsg.fail("无法连接到目标JVM进程，可能进程已终止：" + e.getMessage());
+            } else if (e instanceof java.io.IOException) {
+                return ResultMsg.fail("文件操作失败：" + e.getMessage());
+            } else {
+                return ResultMsg.fail("堆内存Dump失败：" + e.getMessage());
+            }
         }
     }
 
@@ -277,7 +332,16 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
             return ResultMsg.success(result, "活跃线程数量获取成功");
         } catch (Exception e) {
             logger.error("获取活跃线程数量失败，PID: {}", pid, e);
-            return ResultMsg.fail("获取活跃线程数量失败：" + e.getMessage());
+            // 根据异常类型返回更具体的错误信息
+            if (e instanceof SecurityException) {
+                return ResultMsg.fail("权限不足，无法获取线程信息：" + e.getMessage());
+            } else if (e instanceof IllegalArgumentException) {
+                return ResultMsg.fail("无效的PID参数：" + e.getMessage());
+            } else if (e instanceof IllegalStateException) {
+                return ResultMsg.fail("无法连接到目标JVM进程，可能进程已终止：" + e.getMessage());
+            } else {
+                return ResultMsg.fail("获取活跃线程数量失败：" + e.getMessage());
+            }
         }
     }
 
@@ -285,8 +349,13 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
      * 获取当前进程ID
      */
     private String getCurrentProcessId() {
-        // 从运行时MXBean中提取进程ID（格式：pid@hostname）
-        String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
-        return runtimeName.split("@")[0];
+        try {
+            // 从运行时MXBean中提取进程ID（格式：pid@hostname）
+            String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
+            return runtimeName.split("@")[0];
+        } catch (Exception e) {
+            logger.error("获取当前进程ID失败", e);
+            throw new RuntimeException("无法获取当前进程ID", e);
+        }
     }
 }

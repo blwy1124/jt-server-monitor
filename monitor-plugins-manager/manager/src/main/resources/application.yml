@@ -3,9 +3,9 @@ server:
 spring:
   pf4j:
     enabled: true
-    path: ./plugins
+    path: ./storage/plugins
   thymeleaf:
-    prefix: classpath:/templates/
+    prefix: classpath:/static/
     encoding: UTF-8
     cache: false
     suffix: .html

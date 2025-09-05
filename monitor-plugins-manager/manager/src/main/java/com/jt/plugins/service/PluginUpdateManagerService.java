@@ -9,6 +9,8 @@ import com.jt.plugins.common.config.AppConfiguration;
 import com.jt.plugins.config.Pf4jManagerProperties;
 import org.pf4j.PluginManager;
 import org.pf4j.PluginWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +35,8 @@ import java.security.MessageDigest;
 @Service
 public class PluginUpdateManagerService {
 
+    private static final Logger logger = LoggerFactory.getLogger(PluginUpdateManagerService.class);
+
     @Autowired
     private PluginManager pluginManager;
 
@@ -44,7 +48,7 @@ public class PluginUpdateManagerService {
 
     // 常量定义
     private static final int CONNECT_TIMEOUT = 10000; // 10秒连接超时
-    private static final int READ_TIMEOUT = 30000;   // 30秒读取超时
+    private static final int READ_TIMEOUT = 60000;   // 60秒读取超时
     private static final int MAX_RETRY_ATTEMPTS = 3; // 最大重试次数
     private static final int BUFFER_SIZE = 8192;     // 缓冲区大小
 
@@ -58,14 +62,17 @@ public class PluginUpdateManagerService {
             String repositoryUrl = request.getParameter("repositoryUrl");
 
             if (repositoryUrl == null || repositoryUrl.isEmpty()) {
+                logger.warn("设置仓库地址失败：仓库URL为空");
                 return ResultMsg.fail("仓库URL不能为空");
             }
 
             // 更新应用配置中的仓库地址
             appConfiguration.setRepositoryUrl(repositoryUrl);
+            logger.info("仓库地址设置成功：{}", repositoryUrl);
 
             return ResultMsg.successMsg("仓库地址设置成功");
         } catch (Exception e) {
+            logger.error("设置仓库地址异常", e);
             return ResultMsg.fail("设置仓库地址异常: " + e.getMessage());
         }
     }
@@ -93,6 +100,7 @@ public class PluginUpdateManagerService {
     private JSONObject getRemotePluginInfo(String pluginId) throws IOException {
         String repositoryUrl = getRepositoryUrl();
         if (repositoryUrl == null || repositoryUrl.isEmpty()) {
+            logger.warn("未配置插件仓库地址");
             throw new IOException("未配置插件仓库地址");
         }
 
@@ -103,22 +111,30 @@ public class PluginUpdateManagerService {
 
         // 构建元数据文件URL
         String metadataUrl = repositoryUrl + "plugins.json";
+        logger.debug("正在获取远程插件信息，插件ID: {}, 元数据URL: {}", pluginId, metadataUrl);
 
-        // 下载并解析元数据文件
-        String metadataContent = downloadTextWithRetry(metadataUrl);
-        JSONObject metadata = JSON.parseObject(metadataContent);
+        try {
+            // 下载并解析元数据文件
+            String metadataContent = downloadTextWithRetry(metadataUrl);
+            JSONObject metadata = JSON.parseObject(metadataContent);
 
-        JSONArray plugins = metadata.getJSONArray("plugins");
-        if (plugins != null) {
-            for (int i = 0; i < plugins.size(); i++) {
-                JSONObject pluginInfo = plugins.getJSONObject(i);
-                if (pluginId.equals(pluginInfo.getString("id"))) {
-                    return pluginInfo;
+            JSONArray plugins = metadata.getJSONArray("plugins");
+            if (plugins != null) {
+                for (int i = 0; i < plugins.size(); i++) {
+                    JSONObject pluginInfo = plugins.getJSONObject(i);
+                    if (pluginId.equals(pluginInfo.getString("id"))) {
+                        logger.debug("找到远程插件信息，插件ID: {}", pluginId);
+                        return pluginInfo;
+                    }
                 }
             }
-        }
 
-        return null;
+            logger.warn("远程仓库中未找到插件信息，插件ID: {}", pluginId);
+            return null;
+        } catch (Exception e) {
+            logger.error("获取远程插件信息失败，插件ID: {}, URL: {}", pluginId, metadataUrl, e);
+            throw new IOException("获取远程插件信息失败: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -132,9 +148,13 @@ public class PluginUpdateManagerService {
 
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
-                return downloadText(urlString);
+                logger.debug("尝试下载文本 (第{}次尝试): {}", attempt, urlString);
+                String result = downloadText(urlString);
+                logger.debug("文本下载成功 (第{}次尝试): {}", attempt, urlString);
+                return result;
             } catch (SocketTimeoutException e) {
                 lastException = e;
+                logger.warn("文本下载超时 (第{}次尝试): {}", attempt, urlString);
                 if (attempt < MAX_RETRY_ATTEMPTS) {
                     // 等待一段时间后重试
                     try {
@@ -146,11 +166,13 @@ public class PluginUpdateManagerService {
                 }
             } catch (IOException e) {
                 lastException = e;
+                logger.warn("文本下载失败 (第{}次尝试): {}", attempt, urlString, e);
                 // 对于其他IO异常，不重试直接抛出
                 throw e;
             }
         }
 
+        logger.error("文本下载最终失败，已重试{}次: {}", MAX_RETRY_ATTEMPTS, urlString);
         throw new IOException("下载失败，已重试" + MAX_RETRY_ATTEMPTS + "次", lastException);
     }
 
@@ -161,7 +183,19 @@ public class PluginUpdateManagerService {
      * @throws IOException IO异常
      */
     private String downloadText(String urlString) throws IOException {
-        URL url = new URL(urlString);
+        // 验证URL格式
+        if (urlString == null || urlString.isEmpty()) {
+            throw new IOException("URL不能为空");
+        }
+
+        URL url;
+        try {
+            url = new URL(urlString);
+        } catch (Exception e) {
+            logger.error("无效的URL格式: {}", urlString);
+            throw new IOException("无效的URL格式: " + urlString, e);
+        }
+
         HttpURLConnection connection = null;
 
         try {
@@ -176,9 +210,6 @@ public class PluginUpdateManagerService {
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 throw new IOException("HTTP " + responseCode + ": " + connection.getResponseMessage());
             }
-
-            // 获取内容长度（用于日志或进度显示）
-            long contentLength = connection.getContentLengthLong();
 
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(connection.getInputStream(), "UTF-8"))) {
@@ -213,12 +244,14 @@ public class PluginUpdateManagerService {
             String pluginId = request.getParameter("pluginId");
 
             if (pluginId == null || pluginId.isEmpty()) {
+                logger.warn("检查插件更新失败：插件ID为空");
                 return ResultMsg.fail("插件ID不能为空");
             }
 
             // 获取本地插件信息
             PluginWrapper localPlugin = pluginManager.getPlugin(pluginId);
             if (localPlugin == null) {
+                logger.warn("检查插件更新失败：本地未安装该插件，插件ID: {}", pluginId);
                 return ResultMsg.fail("本地未安装该插件");
             }
 
@@ -227,6 +260,7 @@ public class PluginUpdateManagerService {
             // 获取远程插件信息
             JSONObject remotePluginInfo = getRemotePluginInfo(pluginId);
             if (remotePluginInfo == null) {
+                logger.warn("检查插件更新失败：远程仓库中未找到该插件，插件ID: {}", pluginId);
                 return ResultMsg.fail("远程仓库中未找到该插件");
             }
 
@@ -234,6 +268,8 @@ public class PluginUpdateManagerService {
 
             // 比较版本
             boolean hasUpdate = compareVersions(remoteVersion, localVersion) > 0;
+            logger.info("插件更新检查完成，插件ID: {}, 本地版本: {}, 远程版本: {}, 有更新: {}",
+                    pluginId, localVersion, remoteVersion, hasUpdate);
 
             JSONObject result = new JSONObject();
             result.put("pluginId", pluginId);
@@ -244,6 +280,7 @@ public class PluginUpdateManagerService {
 
             return ResultMsg.success(result, hasUpdate ? "发现新版本" : "当前已是最新版本");
         } catch (Exception e) {
+            logger.error("检查插件更新异常，插件ID: {}", request.getParameter("pluginId"), e);
             return ResultMsg.fail("检查更新异常: " + e.getMessage());
         }
     }
@@ -258,8 +295,11 @@ public class PluginUpdateManagerService {
             String pluginId = request.getParameter("pluginId");
 
             if (pluginId == null || pluginId.isEmpty()) {
+                logger.warn("更新或安装插件失败：插件ID为空");
                 return ResultMsg.fail("插件ID不能为空");
             }
+
+            logger.info("开始更新或安装插件: {}", pluginId);
 
             // 检查插件是否已安装
             PluginWrapper plugin = pluginManager.getPlugin(pluginId);
@@ -272,19 +312,24 @@ public class PluginUpdateManagerService {
                         String remoteVersion = remotePluginInfo.getString("version");
                         String localVersion = plugin.getDescriptor().getVersion();
 
-                        // 如果版本相同，则无需更新
+                        // 如果版本相同或更旧，则无需更新
                         if (compareVersions(remoteVersion, localVersion) <= 0) {
+                            logger.info("插件已是最新版本，无需更新: {}", pluginId);
                             return ResultMsg.successMsg("当前已是最新版本，无需更新");
                         }
                     }
                 } catch (Exception e) {
+                    logger.warn("获取远程插件信息失败，继续执行更新流程: {}", pluginId, e);
                     // 如果无法获取远程信息，继续执行更新流程
                 }
             }
 
             // 执行更新或安装
-            return performUpdateOrInstall(pluginId, plugin);
+            ResultMsg<String> result = performUpdateOrInstall(pluginId, plugin);
+            logger.info("插件更新或安装完成: {}, 结果: {}", pluginId, result.getMessage());
+            return result;
         } catch (Exception e) {
+            logger.error("更新或安装插件异常: {}", request.getParameter("pluginId"), e);
             return ResultMsg.fail("操作异常: " + e.getMessage());
         }
     }
@@ -298,9 +343,12 @@ public class PluginUpdateManagerService {
     private ResultMsg<String> performUpdateOrInstall(String pluginId, PluginWrapper existingPlugin) {
         Path tempPluginPath = null;
         try {
+            logger.info("{}插件: {}", existingPlugin != null ? "更新" : "安装", pluginId);
+
             // 获取远程插件信息
             JSONObject remotePluginInfo = getRemotePluginInfo(pluginId);
             if (remotePluginInfo == null) {
+                logger.warn("远程仓库中未找到插件: {}", pluginId);
                 return ResultMsg.fail("远程仓库中未找到该插件");
             }
 
@@ -313,6 +361,7 @@ public class PluginUpdateManagerService {
                 String localVersion = existingPlugin.getDescriptor().getVersion();
                 // 如果版本相同或更旧，则无需更新
                 if (compareVersions(remoteVersion, localVersion) <= 0) {
+                    logger.info("插件版本已是最新，无需更新: {}", pluginId);
                     return ResultMsg.successMsg("当前已是最新版本，无需更新");
                 }
             }
@@ -321,6 +370,7 @@ public class PluginUpdateManagerService {
                 // 如果没有指定jarUrl，则使用默认命名规则
                 String repositoryUrl = getRepositoryUrl();
                 if (repositoryUrl == null || repositoryUrl.isEmpty()) {
+                    logger.warn("未配置插件仓库地址");
                     return ResultMsg.fail("未配置插件仓库地址");
                 }
 
@@ -332,52 +382,104 @@ public class PluginUpdateManagerService {
                 downloadUrl = repositoryUrl + pluginId + ".jar";
             }
 
+            // 验证下载URL格式
+            if (downloadUrl == null || downloadUrl.isEmpty()) {
+                logger.error("插件下载URL为空，插件ID: {}", pluginId);
+                return ResultMsg.fail("插件下载URL配置错误");
+            }
+
             // 创建临时文件路径
             String fileName = pluginId + ".jar";
-            tempPluginPath = Paths.get(pf4jManagerProperties.getPath(), fileName + ".tmp");
+            Path pluginDir = Paths.get(pf4jManagerProperties.getPath());
+
+            // 确保插件目录存在
+            if (!Files.exists(pluginDir)) {
+                logger.info("创建插件目录: {}", pluginDir);
+                Files.createDirectories(pluginDir);
+            }
+
+            tempPluginPath = pluginDir.resolve(fileName + ".tmp");
+            logger.debug("创建临时文件路径: {}", tempPluginPath);
 
             // 下载文件
+            logger.info("开始下载插件文件: {}", downloadUrl);
             downloadFileWithRetry(downloadUrl, tempPluginPath);
+            logger.info("插件文件下载完成: {}", downloadUrl);
 
             // 验证SHA512校验和
             if (expectedSha512 != null && !expectedSha512.isEmpty()) {
+                logger.info("验证插件文件完整性: {}", pluginId);
                 String actualSha512 = calculateSHA512(tempPluginPath);
                 if (!expectedSha512.equalsIgnoreCase(actualSha512)) {
                     // SHA512校验失败，删除临时文件
                     Files.deleteIfExists(tempPluginPath);
+                    logger.warn("插件文件校验失败，可能文件已损坏: {}", pluginId);
                     return ResultMsg.fail("插件文件校验失败，可能文件已损坏");
                 }
+                logger.info("插件文件校验通过: {}", pluginId);
             }
 
-            // 如果是更新操作，先停止插件但不卸载
+            // 如果是更新操作，先停止并卸载现有插件，并将旧文件移动到临时目录
             if (existingPlugin != null) {
-                pluginManager.stopPlugin(pluginId);
+                logger.info("删除旧插件: {}", pluginId);
+                try {
+//                    pluginManager.unloadPlugin(pluginId);
+                    pluginManager.deletePlugin(pluginId);
+                } catch (Exception e) {
+                    logger.warn("删除插件时出现异常: {}", pluginId, e);
+                }
+
+                // 将旧文件移动到临时目录
+//                Path oldPluginPath = existingPlugin.getPluginPath();
+//                if (oldPluginPath != null && Files.exists(oldPluginPath)) {
+//                    Path backupPath = pluginDir.resolve(fileName + ".bak");
+//                    logger.debug("将旧插件文件移动到临时位置: {} -> {}", oldPluginPath, backupPath);
+//                    try {
+//                        Files.move(oldPluginPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
+//                        logger.debug("旧插件文件已移动到临时位置: {}", backupPath);
+//                    } catch (Exception e) {
+//                        logger.error("移动旧插件文件失败: {} -> {}", oldPluginPath, backupPath, e);
+//                        // 如果移动失败，尝试删除临时文件
+//                        Files.deleteIfExists(tempPluginPath);
+//                        return ResultMsg.fail("无法移动旧插件文件: " + e.getMessage());
+//                    }
+//                }
             }
 
-            // 将临时文件重命名为正式文件
-            Path finalPluginPath = Paths.get(pf4jManagerProperties.getPath(), fileName);
-            Files.move(tempPluginPath, finalPluginPath, StandardCopyOption.REPLACE_EXISTING);
-
-            // 如果是更新操作，卸载旧插件并删除旧文件
-            if (existingPlugin != null && existingPlugin.getPluginPath() != null) {
-                // 卸载插件
-                pluginManager.unloadPlugin(pluginId);
-                // 删除旧文件
-                Files.deleteIfExists(existingPlugin.getPluginPath());
+            // 将新文件移动到正式位置
+            Path finalPluginPath = pluginDir.resolve(fileName);
+            logger.debug("将新插件文件移动到正式位置: {} -> {}", tempPluginPath, finalPluginPath);
+            try {
+                Files.move(tempPluginPath, finalPluginPath, StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception e) {
+                logger.error("移动新插件文件失败: {} -> {}", tempPluginPath, finalPluginPath, e);
+                // 如果移动失败，尝试删除临时文件
+                Files.deleteIfExists(tempPluginPath);
+                return ResultMsg.fail("无法移动新插件文件到目标位置: " + e.getMessage());
             }
 
             // 加载并启动插件
+            logger.info("加载插件: {}", pluginId);
             String loadedPluginId = pluginManager.loadPlugin(finalPluginPath);
             if (loadedPluginId != null) {
-                pluginManager.startPlugin(loadedPluginId);
+                logger.info("启动插件: {}", pluginId);
+                try {
+                    pluginManager.startPlugin(loadedPluginId);
+                } catch (Exception e) {
+                    logger.warn("启动插件时出现异常: {}", pluginId, e);
+                }
+
                 if (existingPlugin != null) {
+                    logger.info("插件更新成功: {}", pluginId);
                     return ResultMsg.successMsg("插件更新成功，版本: " + remoteVersion);
                 } else {
+                    logger.info("插件安装成功: {}", pluginId);
                     return ResultMsg.successMsg("插件安装成功，版本: " + remoteVersion);
                 }
             } else {
                 // 插件加载失败，清理文件
                 Files.deleteIfExists(finalPluginPath);
+                logger.error("插件加载失败: {}", pluginId);
                 return ResultMsg.fail("插件加载失败");
             }
         } catch (Exception e) {
@@ -386,9 +488,10 @@ public class PluginUpdateManagerService {
                 try {
                     Files.deleteIfExists(tempPluginPath);
                 } catch (IOException ioException) {
-                    // 忽略删除临时文件的异常
+                    logger.warn("删除临时文件失败: {}", tempPluginPath, ioException);
                 }
             }
+            logger.error("{}插件失败: {}", existingPlugin != null ? "更新" : "安装", pluginId, e);
             return ResultMsg.fail("操作异常: " + e.getMessage());
         }
     }
@@ -404,10 +507,13 @@ public class PluginUpdateManagerService {
 
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             try {
+                logger.debug("尝试下载文件 (第{}次尝试): {}", attempt, urlString);
                 downloadFile(urlString, destination);
+                logger.debug("文件下载成功 (第{}次尝试): {}", attempt, urlString);
                 return; // 成功下载则返回
             } catch (SocketTimeoutException e) {
                 lastException = e;
+                logger.warn("文件下载超时 (第{}次尝试): {}", attempt, urlString);
                 if (attempt < MAX_RETRY_ATTEMPTS) {
                     // 等待一段时间后重试
                     try {
@@ -419,11 +525,13 @@ public class PluginUpdateManagerService {
                 }
             } catch (IOException e) {
                 lastException = e;
+                logger.warn("文件下载失败 (第{}次尝试): {}", attempt, urlString, e);
                 // 对于其他IO异常，不重试直接抛出
                 throw e;
             }
         }
 
+        logger.error("文件下载最终失败，已重试{}次: {}", MAX_RETRY_ATTEMPTS, urlString);
         throw new IOException("文件下载失败，已重试" + MAX_RETRY_ATTEMPTS + "次", lastException);
     }
 
@@ -434,7 +542,19 @@ public class PluginUpdateManagerService {
      * @throws IOException IO异常
      */
     private void downloadFile(String urlString, Path destination) throws IOException {
-        URL url = new URL(urlString);
+        // 验证URL格式
+        if (urlString == null || urlString.isEmpty()) {
+            throw new IOException("URL不能为空");
+        }
+
+        URL url;
+        try {
+            url = new URL(urlString);
+        } catch (Exception e) {
+            logger.error("无效的文件下载URL格式: {}", urlString);
+            throw new IOException("无效的文件下载URL格式: " + urlString, e);
+        }
+
         HttpURLConnection connection = null;
 
         try {
@@ -450,8 +570,12 @@ public class PluginUpdateManagerService {
                 throw new IOException("HTTP " + responseCode + ": " + connection.getResponseMessage());
             }
 
-            // 获取内容长度（用于进度显示或日志）
-            long contentLength = connection.getContentLengthLong();
+            // 确保目标目录存在
+            Path parentDir = destination.getParent();
+            if (parentDir != null && !Files.exists(parentDir)) {
+                logger.info("创建目录: {}", parentDir);
+                Files.createDirectories(parentDir);
+            }
 
             // 下载文件
             try (InputStream inputStream = connection.getInputStream();
@@ -465,6 +589,7 @@ public class PluginUpdateManagerService {
                     outputStream.write(buffer, 0, bytesRead);
                     totalBytesRead += bytesRead;
                 }
+                logger.debug("文件下载完成，总字节数: {}", totalBytesRead);
             }
         } catch (SocketTimeoutException e) {
             throw new SocketTimeoutException("文件下载超时 (URL: " + urlString + "): " + e.getMessage());
@@ -489,18 +614,24 @@ public class PluginUpdateManagerService {
             String pluginId = request.getParameter("pluginId");
 
             if (pluginId == null || pluginId.isEmpty()) {
+                logger.warn("安装插件失败：插件ID为空");
                 return ResultMsg.fail("插件ID不能为空");
             }
 
+            logger.info("开始安装插件: {}", pluginId);
+
             // 检查插件是否已安装
             if (pluginManager.getPlugin(pluginId) != null) {
+                logger.warn("插件已存在，请使用更新功能: {}", pluginId);
                 return ResultMsg.fail("插件已存在，请使用更新功能");
             }
 
             // 执行安装
             ResultMsg<String> result = performUpdateOrInstall(pluginId, null);
+            logger.info("插件安装完成: {}, 结果: {}", pluginId, result.getMessage());
             return result;
         } catch (Exception e) {
+            logger.error("安装插件异常: {}", request.getParameter("pluginId"), e);
             return ResultMsg.fail("安装异常: " + e.getMessage());
         }
     }
@@ -515,19 +646,25 @@ public class PluginUpdateManagerService {
             String pluginId = request.getParameter("pluginId");
 
             if (pluginId == null || pluginId.isEmpty()) {
+                logger.warn("更新插件失败：插件ID为空");
                 return ResultMsg.fail("插件ID不能为空");
             }
+
+            logger.info("开始更新插件: {}", pluginId);
 
             // 检查插件是否已安装
             PluginWrapper plugin = pluginManager.getPlugin(pluginId);
             if (plugin == null) {
+                logger.warn("插件未安装，请使用安装功能: {}", pluginId);
                 return ResultMsg.fail("插件未安装，请使用安装功能");
             }
 
             // 执行更新
             ResultMsg<String> result = performUpdateOrInstall(pluginId, plugin);
+            logger.info("插件更新完成: {}, 结果: {}", pluginId, result.getMessage());
             return result;
         } catch (Exception e) {
+            logger.error("更新插件异常: {}", request.getParameter("pluginId"), e);
             return ResultMsg.fail("更新异常: " + e.getMessage());
         }
     }

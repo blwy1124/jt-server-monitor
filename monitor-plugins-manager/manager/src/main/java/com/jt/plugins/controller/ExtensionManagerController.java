@@ -87,9 +87,4 @@ public class ExtensionManagerController {
     public ResultMsg<JSONObject> action(@RequestBody ExtensionRequestParam extensionRequestParam) throws ClassNotFoundException {
         return extensionManagerService.action(extensionRequestParam);
     }
-
-    @RequestMapping(value = "/testAction", method = RequestMethod.POST)
-    public ResultMsg<JSONObject> testAction(@RequestBody ExtensionRequestParam extensionRequestParam) throws ClassNotFoundException {
-        return extensionManagerService.testAction(extensionRequestParam);
-    }
 }

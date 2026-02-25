@@ -1,4 +1,4 @@
-package com.jt.plugins.extension;
+package com.jt.plugin.extension;
 
 import com.alibaba.fastjson.JSONObject;
 import com.jt.plugins.common.http.ExtensionRequestParam;
@@ -13,6 +13,6 @@ import com.jt.plugins.common.result.ResultMsg;
  * @Version: 1.0
  */
 
-public interface JvmToolsProvider {
+public interface LogCleanProvider {
     ResultMsg<JSONObject> execute(ExtensionRequestParam extensionRequestParam);
 }

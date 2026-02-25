@@ -1,8 +1,8 @@
 package com.jt.plugins.service;
 
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONArray;
-import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.jt.plugins.common.http.ExtensionRequestParam;
 import com.jt.plugins.common.result.ResultMsg;
 import com.jt.plugins.common.config.AppConfiguration;
@@ -351,8 +351,13 @@ public class PluginUpdateManagerService {
                 logger.warn("远程仓库中未找到插件: {}", pluginId);
                 return ResultMsg.fail("远程仓库中未找到该插件");
             }
-
-            String downloadUrl = remotePluginInfo.getString("jarUrl");
+            String repositoryUrl = getRepositoryUrl();
+            // 确保URL以/结尾
+            if (!repositoryUrl.endsWith("/")) {
+                repositoryUrl += "/";
+            }
+            String downloadUrl = "";
+            String jarUrl = remotePluginInfo.getString("jarUrl");
             String expectedSha512 = remotePluginInfo.getString("sha512");
             String remoteVersion = remotePluginInfo.getString("version");
 
@@ -365,21 +370,17 @@ public class PluginUpdateManagerService {
                     return ResultMsg.successMsg("当前已是最新版本，无需更新");
                 }
             }
-
+            //下载地址拼接
             if (downloadUrl == null || downloadUrl.isEmpty()) {
                 // 如果没有指定jarUrl，则使用默认命名规则
-                String repositoryUrl = getRepositoryUrl();
+
                 if (repositoryUrl == null || repositoryUrl.isEmpty()) {
                     logger.warn("未配置插件仓库地址");
                     return ResultMsg.fail("未配置插件仓库地址");
                 }
-
-                // 确保URL以/结尾
-                if (!repositoryUrl.endsWith("/")) {
-                    repositoryUrl += "/";
-                }
-
-                downloadUrl = repositoryUrl + pluginId + ".jar";
+                downloadUrl = repositoryUrl + pluginId + "-" + remoteVersion + ".jar";
+            }else {
+                downloadUrl = repositoryUrl + jarUrl;
             }
 
             // 验证下载URL格式

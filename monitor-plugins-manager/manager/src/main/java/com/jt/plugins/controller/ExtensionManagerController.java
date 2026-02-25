@@ -1,7 +1,7 @@
 package com.jt.plugins.controller;
 
-import com.alibaba.fastjson2.JSONArray;
-import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.jt.plugins.api.OperationButtonExtension;
 import com.jt.plugins.api.monitor.ActionExtension;
 import com.jt.plugins.common.http.ExtensionRequestParam;
@@ -34,6 +34,12 @@ public class ExtensionManagerController {
         this.pluginManager = pluginManager;
     }
 
+    /**
+     * 获取插件列表
+     * @param extensionClass 插件接口顶级类名
+     * @return
+     * @throws ClassNotFoundException
+     */
     @GetMapping("list")
     public JSONArray extensions(@RequestParam String extensionClass) throws ClassNotFoundException {
         List extensions = pluginManager.getExtensions(Class.forName(extensionClass));
@@ -53,6 +59,13 @@ public class ExtensionManagerController {
         return result;
     }
 
+    /**
+     *  插件点击  框架接口 目前未使用 未来删除
+     * @param extensionClass
+     * @param name
+     * @return
+     * @throws ClassNotFoundException
+     */
     @GetMapping("click")
     public String click(@RequestParam String extensionClass, @RequestParam String name) throws ClassNotFoundException {
         List extensions = pluginManager.getExtensions(Class.forName(extensionClass));
@@ -64,8 +77,19 @@ public class ExtensionManagerController {
         return "Extension not found or unavailable";
     }
 
+    /**
+     * 指定插件进行操作
+     * @param extensionRequestParam
+     * @return 操作结果
+     * @throws ClassNotFoundException
+     */
     @RequestMapping(value = "/action", method = RequestMethod.POST)
     public ResultMsg<JSONObject> action(@RequestBody ExtensionRequestParam extensionRequestParam) throws ClassNotFoundException {
         return extensionManagerService.action(extensionRequestParam);
+    }
+
+    @RequestMapping(value = "/testAction", method = RequestMethod.POST)
+    public ResultMsg<JSONObject> testAction(@RequestBody ExtensionRequestParam extensionRequestParam) throws ClassNotFoundException {
+        return extensionManagerService.testAction(extensionRequestParam);
     }
 }

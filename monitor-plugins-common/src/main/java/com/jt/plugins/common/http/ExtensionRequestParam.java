@@ -1,6 +1,6 @@
 package com.jt.plugins.common.http;
 
-import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson.JSONObject;
 import java.util.Map;
 import java.util.Objects;
 

@@ -1,6 +1,6 @@
 package com.jt.plugins.controller;
 
-import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson.JSONObject;
 import com.jt.plugins.common.http.ExtensionRequestParam;
 import com.jt.plugins.common.result.ResultMsg;
 import com.jt.plugins.service.PluginUpdateManagerService;

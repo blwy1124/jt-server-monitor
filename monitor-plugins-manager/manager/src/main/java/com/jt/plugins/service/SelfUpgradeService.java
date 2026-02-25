@@ -1,6 +1,6 @@
 package com.jt.plugins.service;
 
-import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson.JSONObject;
 import com.jt.plugins.common.config.AppConfiguration;
 import com.jt.plugins.common.http.ExtensionRequestParam;
 import com.jt.plugins.common.result.ResultMsg;
@@ -431,7 +431,7 @@ public class SelfUpgradeService {
         logger.info("获取远程应用信息: {}", appInfoUrl);
 
         String appInfoContent = downloadText(appInfoUrl);
-        return com.alibaba.fastjson2.JSON.parseObject(appInfoContent);
+        return com.alibaba.fastjson.JSON.parseObject(appInfoContent);
     }
 
     /**

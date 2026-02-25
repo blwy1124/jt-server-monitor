@@ -1,6 +1,6 @@
 package com.jt.plugins.service;
 
-import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson.JSONObject;
 import com.jt.plugins.common.constant.PluginConstants;
 import com.jt.plugins.common.http.ExtensionRequestParam;
 import com.jt.plugins.common.result.ResultMsg;

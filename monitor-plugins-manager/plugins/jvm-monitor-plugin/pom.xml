@@ -10,12 +10,12 @@
 
     <artifactId>jvm-monitor-plugin</artifactId>
     <packaging>jar</packaging>
-
+    <version>1.0.3</version>
     <name>jvm-monitor-plugin</name>
 
     <properties>
         <plugin.class>com.jt.plugins.JvmToolsPlugin</plugin.class>
-        <plugin.version>1.0.2</plugin.version>
+        <plugin.version>${version}</plugin.version>
         <plugin.provider>qb</plugin.provider>
     </properties>
     <dependencies>

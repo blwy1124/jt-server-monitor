@@ -4,6 +4,7 @@ import org.pf4j.ExtensionPoint;
 
 /**
  * @author blwy_qb
+ * 插件顶级接口  没有用了
  */
 public interface OperationButtonExtension extends ExtensionPoint {
 

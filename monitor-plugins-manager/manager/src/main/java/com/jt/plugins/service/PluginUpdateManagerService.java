@@ -415,7 +415,7 @@ public class PluginUpdateManagerService {
                     // SHA512校验失败，删除临时文件
                     Files.deleteIfExists(tempPluginPath);
                     logger.warn("插件文件校验失败，可能文件已损坏: {}", pluginId);
-                    return ResultMsg.fail("插件文件校验失败，可能文件已损坏");
+                    return ResultMsg.fail(pluginId + "   "+ "插件文件校验失败，可能文件已损坏");
                 }
                 logger.info("插件文件校验通过: {}", pluginId);
             }
@@ -456,7 +456,7 @@ public class PluginUpdateManagerService {
                 logger.error("移动新插件文件失败: {} -> {}", tempPluginPath, finalPluginPath, e);
                 // 如果移动失败，尝试删除临时文件
                 Files.deleteIfExists(tempPluginPath);
-                return ResultMsg.fail("无法移动新插件文件到目标位置: " + e.getMessage());
+                return ResultMsg.fail(pluginId + "   "+ "无法移动新插件文件到目标位置: " + e.getMessage());
             }
 
             // 加载并启动插件
@@ -472,16 +472,16 @@ public class PluginUpdateManagerService {
 
                 if (existingPlugin != null) {
                     logger.info("插件更新成功: {}", pluginId);
-                    return ResultMsg.successMsg("插件更新成功，版本: " + remoteVersion);
+                    return ResultMsg.successMsg(pluginId + "   "+ "插件更新成功，版本: " + remoteVersion);
                 } else {
                     logger.info("插件安装成功: {}", pluginId);
-                    return ResultMsg.successMsg("插件安装成功，版本: " + remoteVersion);
+                    return ResultMsg.successMsg(pluginId + "   "+ "插件安装成功，版本: " + remoteVersion);
                 }
             } else {
                 // 插件加载失败，清理文件
                 Files.deleteIfExists(finalPluginPath);
                 logger.error("插件加载失败: {}", pluginId);
-                return ResultMsg.fail("插件加载失败");
+                return ResultMsg.fail(pluginId + "   "+ "插件加载失败");
             }
         } catch (Exception e) {
             // 发生异常时，清理临时文件
@@ -493,7 +493,7 @@ public class PluginUpdateManagerService {
                 }
             }
             logger.error("{}插件失败: {}", existingPlugin != null ? "更新" : "安装", pluginId, e);
-            return ResultMsg.fail("操作异常: " + e.getMessage());
+            return ResultMsg.fail(pluginId + "   "+ "操作异常: " + e.getMessage());
         }
     }
 

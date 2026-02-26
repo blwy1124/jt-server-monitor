@@ -18,6 +18,7 @@
         <module>system-button-plugin</module>
         <module>whether-button-plugin</module>
         <module>jvm-monitor-plugin</module>
+        <module>log-clean-plugin</module>
     </modules>
 
     <properties>

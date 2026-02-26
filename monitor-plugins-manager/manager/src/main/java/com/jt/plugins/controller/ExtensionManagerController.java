@@ -3,7 +3,6 @@ package com.jt.plugins.controller;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.jt.plugins.api.OperationButtonExtension;
-import com.jt.plugins.api.monitor.ActionExtension;
 import com.jt.plugins.common.http.ExtensionRequestParam;
 import com.jt.plugins.common.result.ResultMsg;
 import com.jt.plugins.service.ExtensionManagerService;
@@ -11,11 +10,7 @@ import org.pf4j.PluginManager;
 import org.pf4j.PluginWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
-import javax.servlet.http.HttpServletRequest;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author blwy_qb
@@ -87,4 +82,10 @@ public class ExtensionManagerController {
     public ResultMsg<JSONObject> action(@RequestBody ExtensionRequestParam extensionRequestParam) throws ClassNotFoundException {
         return extensionManagerService.action(extensionRequestParam);
     }
+
+
+//    @RequestMapping(value = "/logCleanPlugin", method = RequestMethod.POST)
+//    public ResultMsg<JSONObject> logCleanPlugin(@RequestBody ExtensionRequestParam extensionRequestParam ) throws Exception {
+//        return new LogCleanProviderImpl().handleContentWash(extensionRequestParam);
+//    }
 }

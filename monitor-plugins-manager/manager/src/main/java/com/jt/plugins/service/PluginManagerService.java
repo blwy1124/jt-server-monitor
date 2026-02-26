@@ -120,8 +120,8 @@ public class PluginManagerService {
      * @return 加载结果
      */
     public ResultMsg<String> loadPlugin(ExtensionRequestParam request) {
+        String pluginId = request.getParameter("pluginId");
         try {
-            String pluginId = request.getParameter("pluginId");
             if (!StringUtils.hasText(pluginId)) {
                 return ResultMsg.fail("插件ID不能为空");
             }
@@ -129,7 +129,7 @@ public class PluginManagerService {
             // 检查插件是否已加载
             PluginWrapper plugin = pluginManager.getPlugin(pluginId);
             if (plugin != null) {
-                return ResultMsg.successMsg(PluginConstants.PLUGIN_ALREADY_LOADED);
+                return ResultMsg.successMsg(pluginId + " " + PluginConstants.PLUGIN_ALREADY_LOADED);
             }
 
             // 查找插件文件
@@ -146,11 +146,11 @@ public class PluginManagerService {
                 logger.info("插件加载成功: {}", pluginId);
                 return ResultMsg.success(loadedPluginId, PluginConstants.PLUGIN_LOADED);
             } else {
-                return ResultMsg.fail("插件加载失败");
+                return ResultMsg.fail(pluginId + "  " + "插件加载失败");
             }
         } catch (Exception e) {
             logger.error("加载插件失败: {}", request.getParameter("pluginId"), e);
-            return ResultMsg.fail("加载插件失败: " + e.getMessage());
+            return ResultMsg.fail(pluginId + "   "+ "加载插件失败: " + e.getMessage());
         }
     }
 
@@ -160,8 +160,8 @@ public class PluginManagerService {
      * @return 卸载结果
      */
     public ResultMsg<JSONObject> unloadPlugin(ExtensionRequestParam request) {
+        String pluginId = request.getParameter("pluginId");
         try {
-            String pluginId = request.getParameter("pluginId");
             if (!StringUtils.hasText(pluginId)) {
                 return ResultMsg.fail("插件ID不能为空");
             }
@@ -179,13 +179,13 @@ public class PluginManagerService {
             boolean result = pluginManager.unloadPlugin(pluginId);
             if (result) {
                 logger.info("插件卸载成功: {}", pluginId);
-                return ResultMsg.successMsg(PluginConstants.PLUGIN_UNLOADED);
+                return ResultMsg.successMsg(pluginId + "   "+ PluginConstants.PLUGIN_UNLOADED);
             } else {
-                return ResultMsg.fail("插件卸载失败");
+                return ResultMsg.fail(pluginId + "   "+ "插件卸载失败");
             }
         } catch (Exception e) {
-            logger.error("卸载插件失败: {}", request.getParameter("pluginId"), e);
-            return ResultMsg.fail("卸载插件失败: " + e.getMessage());
+            logger.error(pluginId + "   "+ "卸载插件失败: {}", request.getParameter("pluginId"), e);
+            return ResultMsg.fail(pluginId + "   "+ "卸载插件失败: " + e.getMessage());
         }
     }
 
@@ -195,8 +195,8 @@ public class PluginManagerService {
      * @return 启动结果
      */
     public ResultMsg<PluginState> startPlugin(ExtensionRequestParam request) {
+        String pluginId = request.getParameter("pluginId");
         try {
-            String pluginId = request.getParameter("pluginId");
             if (!StringUtils.hasText(pluginId)) {
                 return ResultMsg.fail("插件ID不能为空");
             }
@@ -209,20 +209,20 @@ public class PluginManagerService {
 
             // 检查插件状态
             if (plugin.getPluginState() == PluginState.STARTED) {
-                return ResultMsg.success(PluginState.STARTED, PluginConstants.PLUGIN_ALREADY_STARTED);
+                return ResultMsg.success(PluginState.STARTED, pluginId + "   "+ PluginConstants.PLUGIN_ALREADY_STARTED);
             }
 
             // 启动插件
             PluginState state = pluginManager.startPlugin(pluginId);
             if (state == PluginState.STARTED) {
                 logger.info("插件启动成功: {}", pluginId);
-                return ResultMsg.success(state, PluginConstants.PLUGIN_STARTED);
+                return ResultMsg.success(state, pluginId + "   "+ PluginConstants.PLUGIN_STARTED);
             } else {
-                return ResultMsg.fail("插件启动失败，状态: " + state);
+                return ResultMsg.fail(pluginId + "   "+ "插件启动失败，状态: " + state);
             }
         } catch (Exception e) {
             logger.error("启动插件失败: {}", request.getParameter("pluginId"), e);
-            return ResultMsg.fail("启动插件失败: " + e.getMessage());
+            return ResultMsg.fail(pluginId + "   "+ "启动插件失败: " + e.getMessage());
         }
     }
 
@@ -232,8 +232,8 @@ public class PluginManagerService {
      * @return 停止结果
      */
     public ResultMsg<PluginState> stopPlugin(ExtensionRequestParam request) {
+        String pluginId = request.getParameter("pluginId");
         try {
-            String pluginId = request.getParameter("pluginId");
             if (!StringUtils.hasText(pluginId)) {
                 return ResultMsg.fail("插件ID不能为空");
             }
@@ -247,10 +247,10 @@ public class PluginManagerService {
             // 停止插件
             PluginState state = pluginManager.stopPlugin(pluginId);
             logger.info("插件停止成功: {}", pluginId);
-            return ResultMsg.success(state, PluginConstants.PLUGIN_STOPPED);
+            return ResultMsg.success(state, pluginId + "   "+ PluginConstants.PLUGIN_STOPPED);
         } catch (Exception e) {
             logger.error("停止插件失败: {}", request.getParameter("pluginId"), e);
-            return ResultMsg.fail("停止插件失败: " + e.getMessage());
+            return ResultMsg.fail(pluginId + "   "+ "停止插件失败: " + e.getMessage());
         }
     }
 
@@ -260,8 +260,8 @@ public class PluginManagerService {
      * @return 禁用结果
      */
     public ResultMsg<JSONObject> disablePlugin(ExtensionRequestParam request) {
+        String pluginId = request.getParameter("pluginId");
         try {
-            String pluginId = request.getParameter("pluginId");
             if (!StringUtils.hasText(pluginId)) {
                 return ResultMsg.fail("插件ID不能为空");
             }
@@ -279,13 +279,13 @@ public class PluginManagerService {
             boolean result = pluginManager.disablePlugin(pluginId);
             if (result) {
                 logger.info("插件禁用成功: {}", pluginId);
-                return ResultMsg.successMsg(PluginConstants.PLUGIN_DISABLED);
+                return ResultMsg.successMsg(pluginId + "   "+ PluginConstants.PLUGIN_DISABLED);
             } else {
-                return ResultMsg.fail("插件禁用失败");
+                return ResultMsg.fail(pluginId + "   "+ "插件禁用失败");
             }
         } catch (Exception e) {
             logger.error("禁用插件失败: {}", request.getParameter("pluginId"), e);
-            return ResultMsg.fail("禁用插件失败: " + e.getMessage());
+            return ResultMsg.fail(pluginId + "   "+ "禁用插件失败: " + e.getMessage());
         }
     }
 
@@ -295,8 +295,8 @@ public class PluginManagerService {
      * @return 启用结果
      */
     public ResultMsg<JSONObject> enablePlugin(ExtensionRequestParam request) {
+        String pluginId = request.getParameter("pluginId");
         try {
-            String pluginId = request.getParameter("pluginId");
             if (!StringUtils.hasText(pluginId)) {
                 return ResultMsg.fail("插件ID不能为空");
             }
@@ -311,13 +311,13 @@ public class PluginManagerService {
             boolean result = pluginManager.enablePlugin(pluginId);
             if (result) {
                 logger.info("插件启用成功: {}", pluginId);
-                return ResultMsg.successMsg(PluginConstants.PLUGIN_ENABLED);
+                return ResultMsg.successMsg(pluginId + "   "+ PluginConstants.PLUGIN_ENABLED);
             } else {
-                return ResultMsg.fail("插件启用失败");
+                return ResultMsg.fail(pluginId + "   "+ "插件启用失败");
             }
         } catch (Exception e) {
-            logger.error("启用插件失败: {}", request.getParameter("pluginId"), e);
-            return ResultMsg.fail("启用插件失败: " + e.getMessage());
+            logger.error("启用插件失败: {}",pluginId, e);
+            return ResultMsg.fail(pluginId + "   "+ "启用插件失败: " + e.getMessage());
         }
     }
 
@@ -327,8 +327,8 @@ public class PluginManagerService {
      * @return 删除结果
      */
     public ResultMsg<JSONObject> deletePlugin(ExtensionRequestParam request) {
+        String pluginId = request.getParameter("pluginId");
         try {
-            String pluginId = request.getParameter("pluginId");
             if (!StringUtils.hasText(pluginId)) {
                 return ResultMsg.fail("插件ID不能为空");
             }
@@ -336,12 +336,11 @@ public class PluginManagerService {
             // 检查插件是否存在
             PluginWrapper plugin = pluginManager.getPlugin(pluginId);
             if (plugin == null) {
-                if (plugin.getPluginPath() != null) {
-                    Files.deleteIfExists(plugin.getPluginPath());
-                    return ResultMsg.successMsg("插件删除成功");
-                }
-                return ResultMsg.fail(PluginConstants.PLUGIN_NOT_FOUND);
+                // 插件不存在，直接返回成功（幂等性考虑）
+                logger.info("插件不存在，无需删除: {}", pluginId);
+                return ResultMsg.successMsg("插件不存在，无需删除");
             }
+
 
             // 删除插件文件
             boolean result = pluginManager.deletePlugin(pluginId);

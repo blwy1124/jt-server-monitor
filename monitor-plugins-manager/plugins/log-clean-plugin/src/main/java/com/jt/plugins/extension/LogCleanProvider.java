@@ -1,4 +1,4 @@
-package com.jt.plugin.extension;
+package com.jt.plugins.extension;
 
 import com.alibaba.fastjson.JSONObject;
 import com.jt.plugins.common.http.ExtensionRequestParam;

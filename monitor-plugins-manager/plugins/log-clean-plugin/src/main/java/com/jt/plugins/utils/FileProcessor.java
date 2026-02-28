@@ -15,6 +15,13 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.io.*;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+
 /**
  * @BelongsProject: jt-server-monitor
  * @BelongsPackage: com.jt.plugins.utils
@@ -96,5 +103,109 @@ public class FileProcessor {
             dir.mkdirs();
             logger.debug("创建目录: {}", dirPath);
         }
+    }
+
+    /**
+     * 压缩文件夹
+     * @param sourceDir 源文件夹路径
+     * @param zipFilePath 目标zip文件路径
+     * @return 压缩文件的绝对路径
+     */
+    public static String compressDirectory(String sourceDir, String zipFilePath) throws IOException {
+        logger.info("开始压缩文件夹: {} -> {}", sourceDir, zipFilePath);
+
+        Path sourcePath = Paths.get(sourceDir);
+        if (!Files.exists(sourcePath)) {
+            throw new IOException("源文件夹不存在: " + sourceDir);
+        }
+
+        if (!Files.isDirectory(sourcePath)) {
+            throw new IOException("源路径不是文件夹: " + sourceDir);
+        }
+
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFilePath))) {
+            Files.walkFileTree(sourcePath, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    // 计算相对路径
+                    Path relativePath = sourcePath.relativize(file);
+                    String entryName = relativePath.toString().replace('\\', '/');
+
+                    // 添加文件到zip
+                    ZipEntry zipEntry = new ZipEntry(entryName);
+                    zos.putNextEntry(zipEntry);
+
+                    // 写入文件内容
+                    try (InputStream fis = Files.newInputStream(file)) {
+                        byte[] buffer = new byte[8192];
+                        int length;
+                        while ((length = fis.read(buffer)) > 0) {
+                            zos.write(buffer, 0, length);
+                        }
+                    }
+
+                    zos.closeEntry();
+                    logger.debug("已添加文件到压缩包: {}", entryName);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    // 为目录创建zip条目
+                    Path relativePath = sourcePath.relativize(dir);
+                    if (relativePath.toString().length() > 0) {
+                        String entryName = relativePath.toString().replace('\\', '/') + "/";
+                        zos.putNextEntry(new ZipEntry(entryName));
+                        zos.closeEntry();
+                        logger.debug("已添加目录到压缩包: {}", entryName);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        }
+
+        File zipFile = new File(zipFilePath);
+        long fileSize = zipFile.length();
+        logger.info("文件夹压缩完成: {}, 压缩包大小: {} bytes", zipFilePath, fileSize);
+
+        return zipFilePath;
+    }
+
+    /**
+     * 压缩单个文件
+     * @param sourceFile 源文件路径
+     * @param zipFilePath 目标zip文件路径
+     * @return 压缩文件的绝对路径
+     */
+    public static String compressSingleFile(String sourceFile, String zipFilePath) throws IOException {
+        logger.info("开始压缩文件: {} -> {}", sourceFile, zipFilePath);
+
+        Path sourcePath = Paths.get(sourceFile);
+        if (!Files.exists(sourcePath)) {
+            throw new IOException("源文件不存在: " + sourceFile);
+        }
+
+        String fileName = sourcePath.getFileName().toString();
+
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFilePath))) {
+            ZipEntry zipEntry = new ZipEntry(fileName);
+            zos.putNextEntry(zipEntry);
+
+            try (InputStream fis = Files.newInputStream(sourcePath)) {
+                byte[] buffer = new byte[8192];
+                int length;
+                while ((length = fis.read(buffer)) > 0) {
+                    zos.write(buffer, 0, length);
+                }
+            }
+
+            zos.closeEntry();
+        }
+
+        File zipFile = new File(zipFilePath);
+        long fileSize = zipFile.length();
+        logger.info("文件压缩完成: {}, 压缩包大小: {} bytes", zipFilePath, fileSize);
+
+        return zipFilePath;
     }
 }

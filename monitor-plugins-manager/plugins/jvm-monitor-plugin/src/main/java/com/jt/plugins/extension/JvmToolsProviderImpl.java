@@ -346,6 +346,120 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
     }
 
     /**
+     * 获取某个时间段的GC信息日志
+     * 支持两种时间格式：
+     * 1. 相对时间：hoursAgo（多少小时以前）
+     * 2. 绝对时间：startTime和endTime（具体时间戳）
+     * 
+     * 参数说明：
+     * - pid: 目标进程ID（特殊值"self"表示当前进程）
+     * - hoursAgo: 相对时间，多少小时以前（优先级高于startTime/endTime）
+     * - startTime: 开始时间戳（毫秒）
+     * - endTime: 结束时间戳（毫秒，默认为当前时间）
+     */
+    @ActionHandler("getGcLogInfo")
+    private ResultMsg<JSONObject> handleGetGcLogInfo(ExtensionRequestParam request) {
+        String pid = request.getParameter("pid");
+        String hoursAgoStr = request.getParameter("hoursAgo");
+        String startTimeStr = request.getParameter("startTime");
+        String endTimeStr = request.getParameter("endTime");
+        
+        long currentTime = System.currentTimeMillis();
+        long startTime, endTime;
+        
+        // 优先处理相对时间格式
+        if (hoursAgoStr != null && !hoursAgoStr.isEmpty()) {
+            try {
+                int hoursAgo = Integer.parseInt(hoursAgoStr);
+                if (hoursAgo <= 0) {
+                    return ResultMsg.fail("参数错误：hoursAgo必须大于0");
+                }
+                endTime = currentTime;
+                startTime = currentTime - (hoursAgo * 3600000L); // 转换为毫秒
+                logger.info("使用相对时间格式：过去{}小时", hoursAgo);
+            } catch (NumberFormatException e) {
+                return ResultMsg.fail("参数错误：hoursAgo必须是有效的数字");
+            }
+        } else {
+            // 处理绝对时间格式
+            long defaultStartTime = currentTime - 3600000; // 默认1小时前
+            long defaultEndTime = currentTime;
+            
+            startTime = startTimeStr != null ? Long.parseLong(startTimeStr) : defaultStartTime;
+            endTime = endTimeStr != null ? Long.parseLong(endTimeStr) : defaultEndTime;
+            
+            logger.info("使用绝对时间格式：{} - {}", startTime, endTime);
+        }
+        
+        // 验证时间范围合理性
+        if (startTime >= endTime) {
+            return ResultMsg.fail("参数错误：开始时间必须小于结束时间");
+        }
+        
+        if (endTime > currentTime + 60000) { // 允许1分钟的误差
+            return ResultMsg.fail("参数错误：结束时间不能超过当前时间");
+        }
+        
+        logger.info("开始获取GC日志信息，PID: {}, 时间范围: {} - {}", pid, startTime, endTime);
+        
+        if (pid == null || pid.isEmpty()) {
+            logger.warn("参数错误：PID不能为空");
+            return ResultMsg.fail("参数错误：PID不能为空");
+        }
+        
+        try {
+            // 处理当前进程特殊标识
+            if ("self".equals(pid)) {
+                pid = getCurrentProcessId();
+                logger.debug("转换self为实际PID: {}", pid);
+            }
+            
+            // 调用AttachApiUtil获取GC信息
+            JSONObject gcInfo = AttachApiUtil.getGcLogInfo(pid, startTime, endTime);
+            
+            // 添加时间范围描述
+            JSONObject timeRange = gcInfo.getJSONObject("timeRange");
+            timeRange.put("description", generateTimeRangeDescription(startTime, endTime));
+            
+            logger.info("成功获取GC日志信息，PID: {}", pid);
+            return ResultMsg.success(gcInfo, "GC日志信息获取成功");
+            
+        } catch (Exception e) {
+            logger.error("获取GC日志信息失败，PID: {}", pid, e);
+            if (e instanceof SecurityException) {
+                return ResultMsg.fail("权限不足，无法获取GC信息：" + e.getMessage());
+            } else if (e instanceof IllegalArgumentException) {
+                return ResultMsg.fail("无效的PID参数：" + e.getMessage());
+            } else if (e instanceof IllegalStateException) {
+                return ResultMsg.fail("无法连接到目标JVM进程，可能进程已终止：" + e.getMessage());
+            } else {
+                return ResultMsg.fail("获取GC日志信息失败：" + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 生成时间范围描述
+     */
+    private String generateTimeRangeDescription(long startTime, long endTime) {
+        java.time.Instant startInstant = java.time.Instant.ofEpochMilli(startTime);
+        java.time.Instant endInstant = java.time.Instant.ofEpochMilli(endTime);
+        
+        java.time.ZoneId zoneId = java.time.ZoneId.systemDefault();
+        java.time.format.DateTimeFormatter formatter = 
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        
+        String startStr = java.time.ZonedDateTime.ofInstant(startInstant, zoneId).format(formatter);
+        String endStr = java.time.ZonedDateTime.ofInstant(endInstant, zoneId).format(formatter);
+        
+        long durationHours = (endTime - startTime) / 3600000;
+        long durationMinutes = ((endTime - startTime) % 3600000) / 60000;
+        
+        return String.format("%s 到 %s (持续时间: %d小时%d分钟)", 
+                        startStr, endStr, durationHours, durationMinutes);
+    }
+
+    /**
      * 获取当前进程ID
      */
     private String getCurrentProcessId() {

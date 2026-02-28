@@ -10,9 +10,7 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import java.io.File;
 import java.lang.management.*;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 
 public class AttachApiUtil {
@@ -120,7 +118,89 @@ public class AttachApiUtil {
     }
 
     /**
-     * 获取线程转储
+     * 获取指定时间段的GC日志信息
+     * @param pid 进程ID
+     * @param startTime 开始时间戳（毫秒）
+     * @param endTime 结束时间戳（毫秒）
+     * @return GC日志信息JSON对象
+     */
+    public static JSONObject getGcLogInfo(String pid, long startTime, long endTime) throws Exception {
+        MBeanServerConnection mbsc = connectViaAttach(pid);
+        
+        JSONObject result = new JSONObject();
+        JSONArray gcEvents = new JSONArray();
+        
+        // 获取所有GarbageCollectorMXBean
+        List<GarbageCollectorMXBean> gcBeans = ManagementFactory.getPlatformMXBeans(mbsc, GarbageCollectorMXBean.class);
+        
+        long totalGcCount = 0;
+        long totalGcTime = 0;
+        
+        for (GarbageCollectorMXBean gcBean : gcBeans) {
+            JSONObject gcStat = new JSONObject();
+            gcStat.put("name", gcBean.getName());
+            gcStat.put("collectionCount", gcBean.getCollectionCount());
+            gcStat.put("collectionTime", gcBean.getCollectionTime());
+            gcStat.put("avgCollectionTime", 
+                  gcBean.getCollectionCount() > 0 ? 
+                  (double) gcBean.getCollectionTime() / gcBean.getCollectionCount() : 0);
+        
+            gcEvents.add(gcStat);
+        
+            totalGcCount += gcBean.getCollectionCount();
+            totalGcTime += gcBean.getCollectionTime();
+        }
+        
+        // 获取内存池信息
+        JSONArray memoryPools = new JSONArray();
+        List<MemoryPoolMXBean> poolBeans = ManagementFactory.getPlatformMXBeans(mbsc, MemoryPoolMXBean.class);
+        
+        for (MemoryPoolMXBean poolBean : poolBeans) {
+            JSONObject poolInfo = new JSONObject();
+            poolInfo.put("name", poolBean.getName());
+            poolInfo.put("type", poolBean.getType().toString());
+        
+            // 获取内存使用情况
+            MemoryUsage usage = poolBean.getUsage();
+            if (usage != null) {
+                poolInfo.put("used", usage.getUsed());
+                poolInfo.put("max", usage.getMax());
+                poolInfo.put("committed", usage.getCommitted());
+                poolInfo.put("init", usage.getInit());
+                poolInfo.put("usagePercentage", 
+                        usage.getMax() > 0 ? (double) usage.getUsed() / usage.getMax() * 100 : 0);
+            }
+        
+            memoryPools.add(poolInfo);
+        }
+        
+        // 获取操作系统信息
+        OperatingSystemMXBean osBean = ManagementFactory.newPlatformMXBeanProxy(
+            mbsc, ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME, OperatingSystemMXBean.class);
+    
+        // 组装结果
+        result.put("pid", pid);
+        result.put("timeRange", new JSONObject()
+        .fluentPut("startTime", startTime)
+        .fluentPut("endTime", endTime)
+        .fluentPut("duration", endTime - startTime));
+        result.put("gcStatistics", gcEvents);
+        result.put("memoryPools", memoryPools);
+        result.put("systemInfo", new JSONObject()
+        .fluentPut("osName", osBean.getName())
+        .fluentPut("arch", osBean.getArch())
+        .fluentPut("availableProcessors", osBean.getAvailableProcessors())
+        .fluentPut("systemLoadAverage", osBean.getSystemLoadAverage()));
+        result.put("summary", new JSONObject()
+        .fluentPut("totalGcCollections", totalGcCount)
+        .fluentPut("totalGcTimeMs", totalGcTime)
+        .fluentPut("avgGcIntervalMs", totalGcCount > 0 ? (endTime - startTime) / totalGcCount : 0));
+    
+        return result;
+    }
+
+    /**
+     * 获取线程转储（保持原有方法）
      */
     public static JSONArray getThreadDump(String pid) throws Exception {
         MBeanServerConnection mbsc = connectViaAttach(pid);

@@ -295,4 +295,140 @@ public class LogCleanProviderImpl implements LogCleanProvider {
         // 存储到缓存中（需要实现缓存管理器）
         // tokenCache.put(token, tokenInfo, expireSeconds);
     }
+
+    /**
+     * 处理文件夹清理请求
+     * @param request
+     * @return
+     */
+    @ActionHandler("cleanFolder")
+    public ResultMsg<JSONObject> handleCleanFolder(ExtensionRequestParam request) {
+        logger.debug("处理文件夹清理请求");
+        
+        try {
+            // 获取请求参数
+            String folderPath = request.getParameter("folderPath");
+            String cutoffTimeStr = request.getParameter("cutoffTime"); // 截止时间
+            String cleanMode = request.getParameter("cleanMode", "beforeTime"); // beforeTime 或 entire
+            boolean recursive = Boolean.parseBoolean(request.getParameter("recursive", "true"));
+            boolean checkModifiedTime = Boolean.parseBoolean(request.getParameter("checkModifiedTime", "true")); // true:检查修改时间，false:检查创建时间
+            boolean returnDetails = Boolean.parseBoolean(request.getParameter("returnDetails", "true"));
+            
+            // 参数校验
+            if (folderPath == null || folderPath.isEmpty()) {
+                return ResultMsg.fail("文件夹路径不能为空");
+            }
+            
+            // 验证文件夹是否存在
+            File folder = new File(folderPath);
+            if (!folder.exists()) {
+                return ResultMsg.fail("文件夹不存在: " + folderPath);
+            }
+            
+            if (!folder.isDirectory()) {
+                return ResultMsg.fail("路径不是文件夹: " + folderPath);
+            }
+            
+            // 执行清理操作
+            com.jt.plugins.utils.clean.FolderCleaner folderCleaner = new com.jt.plugins.utils.clean.FolderCleaner();
+            com.jt.plugins.utils.clean.FolderCleaner.CleanResult cleanResult;
+            
+            if ("beforeTime".equals(cleanMode)) {
+                // 清理截止时间之前的文件
+                if (cutoffTimeStr == null || cutoffTimeStr.isEmpty()) {
+                    return ResultMsg.fail("按时间清理时，cutoffTime参数必须提供");
+                }
+                
+                long cutoffTime = Long.parseLong(cutoffTimeStr);
+                
+                // 验证截止时间合理性（不能是未来时间）
+                if (cutoffTime > System.currentTimeMillis() + 60000) { // 允许1分钟的误差
+                    return ResultMsg.fail("截止时间不能超过当前时间");
+                }
+                
+                String timeType = checkModifiedTime ? "修改时间" : "创建时间";
+                logger.info("清理{}在{}之前创建/修改的文件: {}, 递归: {}", 
+                           timeType, cutoffTime, folderPath, recursive);
+                
+                cleanResult = folderCleaner.cleanFolderBeforeTime(folderPath, cutoffTime, recursive, checkModifiedTime);
+                
+            } else if ("entire".equals(cleanMode)) {
+                // 清空整个文件夹
+                logger.info("清空整个文件夹: {}, 递归: {}", folderPath, recursive);
+                cleanResult = folderCleaner.cleanEntireFolder(folderPath, recursive);
+                
+            } else {
+                return ResultMsg.fail("不支持的清理模式: " + cleanMode + "，支持的模式: beforeTime, entire");
+            }
+            
+            // 构建返回结果
+            JSONObject resultData = new JSONObject();
+            resultData.put("folderPath", folderPath);
+            resultData.put("cleanMode", cleanMode);
+            resultData.put("recursive", recursive);
+            if ("beforeTime".equals(cleanMode)) {
+                resultData.put("cutoffTime", cutoffTimeStr);
+                resultData.put("checkModifiedTime", checkModifiedTime);
+                resultData.put("timeType", checkModifiedTime ? "修改时间" : "创建时间");
+            }
+            resultData.put("deletedFiles", cleanResult.getDeletedFiles());
+            resultData.put("deletedFolders", cleanResult.getDeletedFolders());
+            resultData.put("totalSize", cleanResult.getTotalSize());
+            resultData.put("processingTime", cleanResult.getProcessingTime());
+            resultData.put("cleanTime", System.currentTimeMillis());
+            
+            // 如果需要返回详细信息
+            if (returnDetails && cleanResult.getDeletedFiles() > 0) {
+                String timeDesc = "";
+                if ("beforeTime".equals(cleanMode)) {
+                    String timeType = checkModifiedTime ? "修改时间" : "创建时间";
+                    timeDesc = "（" + timeType + "在 " + formatTimestamp(Long.parseLong(cutoffTimeStr)) + " 之前）";
+                }
+                resultData.put("details", "清理完成" + timeDesc + "，删除了 " + cleanResult.getDeletedFiles() + " 个文件和 " 
+                              + cleanResult.getDeletedFolders() + " 个文件夹，总大小: " 
+                              + formatFileSize(cleanResult.getTotalSize()));
+            }
+            
+            String successMessage = String.format("文件夹清理完成，删除了%d个文件和%d个文件夹，总大小: %s，耗时: %d ms",
+                cleanResult.getDeletedFiles(), cleanResult.getDeletedFolders(),
+                formatFileSize(cleanResult.getTotalSize()), cleanResult.getProcessingTime());
+            
+            logger.info("文件夹清理操作完成: {}", successMessage);
+            
+            return ResultMsg.success(resultData, successMessage);
+            
+        } catch (NumberFormatException e) {
+            logger.error("时间参数格式错误", e);
+            return ResultMsg.fail("时间参数格式错误，请提供有效的时间戳");
+        } catch (Exception e) {
+            logger.error("处理文件夹清理失败", e);
+            return ResultMsg.fail("文件夹清理失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 格式化文件大小显示
+     */
+    private String formatFileSize(long size) {
+        if (size < 1024) {
+            return size + " B";
+        } else if (size < 1024 * 1024) {
+            return String.format("%.2f KB", size / 1024.0);
+        } else if (size < 1024 * 1024 * 1024) {
+            return String.format("%.2f MB", size / (1024.0 * 1024.0));
+        } else {
+            return String.format("%.2f GB", size / (1024.0 * 1024.0 * 1024.0));
+        }
+    }
+    
+    /**
+     * 格式化时间戳显示
+     */
+    private String formatTimestamp(long timestamp) {
+        java.time.Instant instant = java.time.Instant.ofEpochMilli(timestamp);
+        java.time.ZoneId zoneId = java.time.ZoneId.systemDefault();
+        java.time.format.DateTimeFormatter formatter = 
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        return java.time.ZonedDateTime.ofInstant(instant, zoneId).format(formatter);
+    }
 }

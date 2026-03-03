@@ -71,7 +71,7 @@ public class DbMonitorProviderImpl implements DbMonitorProvider {
                 Throwable cause = e.getCause();
                 if (cause != null) {
                     if (cause instanceof SecurityException) {
-                        return ResultMsg.fail("权限不足，无法访问目标JVM进程：" + cause.getMessage());
+                        return ResultMsg.fail("权限不足：" + cause.getMessage());
                     } else if (cause instanceof IllegalArgumentException) {
                         return ResultMsg.fail("参数错误：" + cause.getMessage());
                     } else if (cause instanceof IllegalStateException) {
@@ -80,6 +80,7 @@ public class DbMonitorProviderImpl implements DbMonitorProvider {
                         return ResultMsg.fail("执行操作失败：" + cause.getMessage());
                     }
                 }
+                e.printStackTrace();
                 return ResultMsg.fail("执行操作失败：" + e.getMessage());
             }
         }
@@ -95,8 +96,8 @@ public class DbMonitorProviderImpl implements DbMonitorProvider {
      */
     @ActionHandler("getDbMetrics")
     public ResultMsg<JSONObject> getDbMetrics(ExtensionRequestParam extensionRequestParam) {
-        logger.debug("开始获取SQL Server活动监视器数据");
-        
+        logger.debug("开始获取 SQL Server 活动监视器数据");
+
         SqlServerConnectionManager connectionManager = null;
         try {
             // 获取数据库连接参数
@@ -106,7 +107,7 @@ public class DbMonitorProviderImpl implements DbMonitorProvider {
             String username = extensionRequestParam.getParameter("username");
             String password = extensionRequestParam.getParameter("password");
             int timeout = Integer.parseInt(extensionRequestParam.getParameter("timeout", "30"));
-            
+
             // 参数验证
             if (username == null || username.isEmpty()) {
                 return ResultMsg.fail("用户名不能为空");
@@ -114,41 +115,79 @@ public class DbMonitorProviderImpl implements DbMonitorProvider {
             if (password == null || password.isEmpty()) {
                 return ResultMsg.fail("密码不能为空");
             }
-            
+
             // 创建连接管理器
             connectionManager = new SqlServerConnectionManager(
                 host, port, database, username, password, timeout);
-            
+
             // 测试连接
             if (!connectionManager.testConnection()) {
-                return ResultMsg.fail("无法连接到SQL Server数据库");
+                return ResultMsg.fail("无法连接到 SQL Server 数据库");
             }
-            
+
             // 创建数据采集器并采集数据
             SqlServerMetricsCollector collector = new SqlServerMetricsCollector(connectionManager.getDataSource());
             SqlServerActivityMetrics metrics = collector.collectActivityMetrics();
-            
+
             // 构建返回结果
             JSONObject resultData = metrics.toJSON();
             resultData.put("host", host);
             resultData.put("port", port);
             resultData.put("database", database);
             
+            // 检查是否有采集失败的项目（值为 -1）
+            StringBuilder errorItems = new StringBuilder();
+            if (metrics.getTotalProcesses() == -1) {
+                errorItems.append("进程信息 ");
+            }
+            if (metrics.getTotalWaits() == -1) {
+                errorItems.append("等待统计 ");
+            }
+            if (metrics.getBatchRequestsPerSec() == -1) {
+                errorItems.append("性能计数器 ");
+            }
+            if (metrics.getMemoryUsedMB() == -1) {
+                errorItems.append("内存统计 ");
+            }
+            if (metrics.getDiskReadsPerSec() == -1) {
+                errorItems.append("I/O 统计 ");
+            }
+            if (metrics.getCpuUsagePercent() == -1.0) {
+                errorItems.append("CPU 使用率 ");
+            }
+            if (metrics.getActiveTransactions() == -1) {
+                errorItems.append("活跃事务数 ");
+            }
+            
+            // 将错误信息单独放在一个对象中
+            JSONObject errorInfo = new JSONObject();
+            if (errorItems.length() > 0) {
+                errorInfo.put("hasError", true);
+                errorInfo.put("errorItems", errorItems.toString().trim());
+                errorInfo.put("errorMessage", "部分监控项采集失败（值为 -1），请查看日志获取详细信息");
+                logger.warn("部分监控项采集失败：{}", errorItems.toString());
+            } else {
+                errorInfo.put("hasError", false);
+            }
+            
+            // 添加到返回结果中
+            resultData.put("errorInfo", errorInfo);
+            
             String successMessage = String.format(
-                "成功获取SQL Server活动监视器数据 - 进程数: %d, CPU使用率: %.2f%%, 内存使用: %d MB",
+                "成功获取 SQL Server 活动监视器数据 - 进程数：%d, CPU 使用率：%.2f%%, 内存使用：%d MB",
                 metrics.getTotalProcesses(), metrics.getCpuUsagePercent(), metrics.getMemoryUsedMB()
             );
             
             logger.info(successMessage);
             
             return ResultMsg.success(resultData, successMessage);
-            
+
         } catch (NumberFormatException e) {
             logger.error("参数格式错误", e);
-            return ResultMsg.fail("参数格式错误: " + e.getMessage());
+            return ResultMsg.fail("参数格式错误：" + e.getMessage());
         } catch (Exception e) {
             logger.error("获取数据库监控数据失败", e);
-            return ResultMsg.fail("获取数据库监控数据失败: " + e.getMessage());
+            return ResultMsg.fail("获取数据库监控数据失败：" + e.getMessage());
         } finally {
             // 清理资源
             if (connectionManager != null) {

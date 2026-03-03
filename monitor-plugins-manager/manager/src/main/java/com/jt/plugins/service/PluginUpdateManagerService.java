@@ -422,29 +422,42 @@ public class PluginUpdateManagerService {
 
             // 如果是更新操作，先停止并卸载现有插件，并将旧文件移动到临时目录
             if (existingPlugin != null) {
-                logger.info("删除旧插件: {}", pluginId);
+                logger.info("删除旧插件：{}", pluginId);
                 try {
-//                    pluginManager.unloadPlugin(pluginId);
-                    pluginManager.deletePlugin(pluginId);
+                    // 先停止插件
+                    pluginManager.stopPlugin(pluginId);
+                    logger.info("插件已停止：{}", pluginId);
+                    
+                    // 卸载插件（重要：这会释放 ClassLoader 对 JAR 文件的锁定）
+                    pluginManager.unloadPlugin(pluginId);
+                    logger.info("插件已卸载：{}", pluginId);
+                    
+                    // 等待一小段时间确保文件锁释放
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    
+                    // 现在可以安全删除插件文件
+                    Path oldPluginPath = existingPlugin.getPluginPath();
+                    if (oldPluginPath != null && Files.exists(oldPluginPath)) {
+                        logger.info("删除旧插件文件：{}", oldPluginPath);
+                        try {
+                            Files.delete(oldPluginPath);
+                            logger.info("旧插件文件已删除：{}", oldPluginPath);
+                        } catch (IOException e) {
+                            logger.warn("删除旧插件文件失败，尝试重命名：{}", oldPluginPath, e);
+                            // 如果删除失败，尝试重命名
+                            Path backupPath = pluginDir.resolve(fileName + ".old." + System.currentTimeMillis());
+                            Files.move(oldPluginPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
+                            logger.info("旧插件文件已重命名：{}", backupPath);
+                        }
+                    }
                 } catch (Exception e) {
-                    logger.warn("删除插件时出现异常: {}", pluginId, e);
+                    logger.error("删除旧插件时出现严重异常：{}", pluginId, e);
+                    return ResultMsg.fail("删除旧插件失败：" + e.getMessage());
                 }
-
-                // 将旧文件移动到临时目录
-//                Path oldPluginPath = existingPlugin.getPluginPath();
-//                if (oldPluginPath != null && Files.exists(oldPluginPath)) {
-//                    Path backupPath = pluginDir.resolve(fileName + ".bak");
-//                    logger.debug("将旧插件文件移动到临时位置: {} -> {}", oldPluginPath, backupPath);
-//                    try {
-//                        Files.move(oldPluginPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
-//                        logger.debug("旧插件文件已移动到临时位置: {}", backupPath);
-//                    } catch (Exception e) {
-//                        logger.error("移动旧插件文件失败: {} -> {}", oldPluginPath, backupPath, e);
-//                        // 如果移动失败，尝试删除临时文件
-//                        Files.deleteIfExists(tempPluginPath);
-//                        return ResultMsg.fail("无法移动旧插件文件: " + e.getMessage());
-//                    }
-//                }
             }
 
             // 将新文件移动到正式位置

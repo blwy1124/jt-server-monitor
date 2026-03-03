@@ -69,9 +69,19 @@ public class SqlServerMetricsCollector {
                 metrics.setRunningProcesses(getIntValue(processInfo, "running_processes"));
                 metrics.setSuspendedProcesses(getIntValue(processInfo, "suspended_processes"));
                 metrics.setBlockedProcesses(getIntValue(processInfo, "blocked_processes"));
+            } else {
+                metrics.setTotalProcesses(-1);
+                metrics.setRunningProcesses(-1);
+                metrics.setSuspendedProcesses(-1);
+                metrics.setBlockedProcesses(-1);
+                logger.error("采集进程信息失败：返回结果为空");
             }
         } catch (Exception e) {
-            logger.warn("采集进程信息失败", e);
+            metrics.setTotalProcesses(-1);
+            metrics.setRunningProcesses(-1);
+            metrics.setSuspendedProcesses(-1);
+            metrics.setBlockedProcesses(-1);
+            logger.error("采集进程信息失败", e);
         }
     }
 
@@ -84,9 +94,15 @@ public class SqlServerMetricsCollector {
             if (waitStats != null) {
                 metrics.setTotalWaits(getIntValue(waitStats, "total_waits"));
                 metrics.setAverageWaitTime(getDoubleValue(waitStats, "avg_wait_time"));
+            } else {
+                metrics.setTotalWaits(-1);
+                metrics.setAverageWaitTime(-1.0);
+                logger.error("采集等待统计失败：返回结果为空");
             }
         } catch (Exception e) {
-            logger.warn("采集等待统计失败", e);
+            metrics.setTotalWaits(-1);
+            metrics.setAverageWaitTime(-1.0);
+            logger.error("采集等待统计失败", e);
         }
     }
 
@@ -96,7 +112,7 @@ public class SqlServerMetricsCollector {
     private void collectPerformanceCounters(SqlServerMetricsMapper mapper, SqlServerActivityMetrics metrics) {
         try {
             List<Map<String, Object>> counters = mapper.getPerformanceCounters();
-            if (counters != null) {
+            if (counters != null && !counters.isEmpty()) {
                 for (Map<String, Object> counter : counters) {
                     String counterName = getStringValue(counter, "counter_name");
                     long value = getLongValue(counter, "cntr_value");
@@ -112,16 +128,28 @@ public class SqlServerMetricsCollector {
                             metrics.setSqlRecompilationsPerSec((int) value);
                             break;
                         case "Buffer cache hit ratio":
-                            metrics.setBufferCacheHitRatio(value / 100.0); // 转换为百分比
+                            metrics.setBufferCacheHitRatio(value / 100.0);
                             break;
                         case "Page life expectancy":
                             metrics.setPageLifeExpectancy(value);
                             break;
                     }
                 }
+            } else {
+                metrics.setBatchRequestsPerSec(-1);
+                metrics.setSqlCompilationsPerSec(-1);
+                metrics.setSqlRecompilationsPerSec(-1);
+                metrics.setBufferCacheHitRatio(-1.0);
+                metrics.setPageLifeExpectancy(-1);
+                logger.error("采集性能计数器失败：返回结果为空");
             }
         } catch (Exception e) {
-            logger.warn("采集性能计数器失败", e);
+            metrics.setBatchRequestsPerSec(-1);
+            metrics.setSqlCompilationsPerSec(-1);
+            metrics.setSqlRecompilationsPerSec(-1);
+            metrics.setBufferCacheHitRatio(-1.0);
+            metrics.setPageLifeExpectancy(-1);
+            logger.error("采集性能计数器失败", e);
         }
     }
 
@@ -134,14 +162,20 @@ public class SqlServerMetricsCollector {
             if (memoryStats != null) {
                 metrics.setMemoryUsedMB(getLongValue(memoryStats, "memory_used_mb"));
                 metrics.setMemoryAvailableMB(getLongValue(memoryStats, "memory_available_mb"));
+            } else {
+                metrics.setMemoryUsedMB(-1);
+                metrics.setMemoryAvailableMB(-1);
+                logger.error("采集内存统计失败：返回结果为空");
             }
         } catch (Exception e) {
-            logger.warn("采集内存统计失败", e);
+            metrics.setMemoryUsedMB(-1);
+            metrics.setMemoryAvailableMB(-1);
+            logger.error("采集内存统计失败", e);
         }
     }
 
     /**
-     * 采集I/O统计
+     * 采集 I/O 统计
      */
     private void collectIOStats(SqlServerMetricsMapper mapper, SqlServerActivityMetrics metrics) {
         try {
@@ -149,9 +183,15 @@ public class SqlServerMetricsCollector {
             if (ioStats != null) {
                 metrics.setDiskReadsPerSec(getLongValue(ioStats, "disk_reads"));
                 metrics.setDiskWritesPerSec(getLongValue(ioStats, "disk_writes"));
+            } else {
+                metrics.setDiskReadsPerSec(-1);
+                metrics.setDiskWritesPerSec(-1);
+                logger.error("采集 I/O 统计失败：返回结果为空");
             }
         } catch (Exception e) {
-            logger.warn("采集I/O统计失败", e);
+            metrics.setDiskReadsPerSec(-1);
+            metrics.setDiskWritesPerSec(-1);
+            logger.error("采集 I/O 统计失败", e);
         }
     }
 
@@ -160,21 +200,30 @@ public class SqlServerMetricsCollector {
      */
     private void collectAdditionalMetrics(SqlServerMetricsMapper mapper, SqlServerActivityMetrics metrics) {
         try {
-            // CPU使用率
+            // CPU 使用率
             Double cpuUsage = mapper.getCpuUsagePercent();
             if (cpuUsage != null) {
                 metrics.setCpuUsagePercent(cpuUsage);
+            } else {
+                metrics.setCpuUsagePercent(-1.0);
+                logger.error("采集 CPU 使用率失败：返回结果为空");
             }
 
             // 活跃事务数
             Integer activeTransactions = mapper.getActiveTransactions();
             if (activeTransactions != null) {
                 metrics.setActiveTransactions(activeTransactions);
+            } else {
+                metrics.setActiveTransactions(-1);
+                logger.error("采集活跃事务数失败：返回结果为空");
             }
         } catch (Exception e) {
-            logger.warn("采集额外指标失败", e);
+            metrics.setCpuUsagePercent(-1.0);
+            metrics.setActiveTransactions(-1);
+            logger.error("采集额外指标失败", e);
         }
     }
+
 
     // 工具方法
     private int getIntValue(Map<String, Object> map, String key) {

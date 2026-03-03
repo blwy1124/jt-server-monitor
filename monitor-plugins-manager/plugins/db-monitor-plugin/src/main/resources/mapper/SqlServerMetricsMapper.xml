@@ -3,71 +3,71 @@
     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="com.jt.plugins.mapper.SqlServerMetricsMapper">
-    
+
     <!-- 获取进程信息统计 -->
     <select id="getProcessInfo" resultType="map">
-        SELECT 
+        SELECT
             COUNT(*) as total_processes,
-            SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) as running_processes,
-            SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended_processes,
+            SUM(CASE WHEN r.status = 'running' THEN 1 ELSE 0 END) as running_processes,
+            SUM(CASE WHEN r.status = 'suspended' THEN 1 ELSE 0 END) as suspended_processes,
             SUM(CASE WHEN blocking_session_id IS NOT NULL AND blocking_session_id > 0 THEN 1 ELSE 0 END) as blocked_processes
         FROM sys.dm_exec_requests r
-        LEFT JOIN sys.dm_exec_sessions s ON r.session_id = s.session_id
+                 LEFT JOIN sys.dm_exec_sessions s ON r.session_id = s.session_id
         WHERE r.session_id >= 50
     </select>
-    
+
     <!-- 获取等待统计信息 -->
     <select id="getWaitStats" resultType="map">
-        SELECT 
+        SELECT
             COUNT(*) as total_waits,
             AVG(wait_time_ms) as avg_wait_time
-        FROM sys.dm_os_wait_stats 
+        FROM sys.dm_os_wait_stats
         WHERE wait_type NOT IN (
-            'CLR_SEMAPHORE','LAZYWRITER_SLEEP','RESOURCE_QUEUE','SLEEP_TASK',
-            'SLEEP_SYSTEMTASK','WAITFOR','XE_DISPATCHER_WAIT','XE_TIMER_EVENT'
-        )
+                                'CLR_SEMAPHORE','LAZYWRITER_SLEEP','RESOURCE_QUEUE','SLEEP_TASK',
+                                'SLEEP_SYSTEMTASK','WAITFOR','XE_DISPATCHER_WAIT','XE_TIMER_EVENT'
+            )
     </select>
-    
+
     <!-- 获取性能计数器数据 -->
     <select id="getPerformanceCounters" resultType="map">
-        SELECT 
+        SELECT
             counter_name,
             cntr_value
-        FROM sys.dm_os_performance_counters 
+        FROM sys.dm_os_performance_counters
         WHERE object_name LIKE '%SQLServer%'
           AND counter_name IN (
-            'Batch Requests/sec',
-            'SQL Compilations/sec',
-            'SQL Re-Compilations/sec',
-            'Buffer cache hit ratio',
-            'Page life expectancy'
-          )
+                               'Batch Requests/sec',
+                               'SQL Compilations/sec',
+                               'SQL Re-Compilations/sec',
+                               'Buffer cache hit ratio',
+                               'Page life expectancy'
+            )
     </select>
-    
+
     <!-- 获取内存使用统计 -->
     <select id="getMemoryStats" resultType="map">
-        SELECT 
+        SELECT
             (physical_memory_in_use_kb / 1024) as memory_used_mb,
-            ((physical_memory_kb - physical_memory_in_use_kb) / 1024) as memory_available_mb
+            ((virtual_address_space_committed_kb - physical_memory_in_use_kb) / 1024) as memory_available_mb
         FROM sys.dm_os_process_memory
     </select>
-    
-    <!-- 获取I/O统计信息 -->
+
+    <!-- 获取 I/O 统计信息 -->
     <select id="getIOStats" resultType="map">
-        SELECT 
+        SELECT
             SUM(num_of_reads) as disk_reads,
             SUM(num_of_writes) as disk_writes
         FROM sys.dm_io_virtual_file_stats(NULL, NULL)
     </select>
-    
-    <!-- 获取CPU使用率 -->
+
+    <!-- 获取 CPU 使用率 -->
     <select id="getCpuUsagePercent" resultType="double">
-        SELECT 
-            COUNT(*) * 100.0 / (SELECT COUNT(*) FROM sys.dm_exec_requests WHERE session_id >= 50) as cpu_usage_percent
-        FROM sys.dm_exec_requests 
+        SELECT
+                    COUNT(*) * 100.0 / (SELECT COUNT(*) FROM sys.dm_exec_requests WHERE session_id >= 50) as cpu_usage_percent
+        FROM sys.dm_exec_requests
         WHERE session_id >= 50 AND status = 'running'
     </select>
-    
+
     <!-- 获取活跃事务数 -->
     <select id="getActiveTransactions" resultType="int">
         SELECT COUNT(*) as active_transactions

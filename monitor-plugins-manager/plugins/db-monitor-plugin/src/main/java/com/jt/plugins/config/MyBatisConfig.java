@@ -20,7 +20,7 @@ public class MyBatisConfig {
     private static SqlSessionFactory sqlSessionFactory;
 
     /**
-     * 初始化MyBatis配置
+     * 初始化 MyBatis 配置
      */
     public static void initialize(DataSource dataSource) {
         try {
@@ -31,24 +31,38 @@ public class MyBatisConfig {
             configuration.setLazyLoadingEnabled(true);
             configuration.setAggressiveLazyLoading(false);
 
-            // 注册Mapper接口
+            // 注册 Mapper 接口
             configuration.addMapper(com.jt.plugins.mapper.SqlServerMetricsMapper.class);
 
-            // 添加XML映射文件
-            InputStream xmlStream = MyBatisConfig.class.getClassLoader()
-                    .getResourceAsStream("mapper/SqlServerMetricsMapper.xml");
+            // 添加 XML 映射文件 - 正确的加载方式
+            String xmlPath = "mapper/SqlServerMetricsMapper.xml";
+            InputStream xmlStream = MyBatisConfig.class.getClassLoader().getResourceAsStream(xmlPath);
+            
             if (xmlStream != null) {
-                configuration.addMappedStatement(null); // MyBatis会自动解析XML
-                logger.info("XML映射文件加载成功");
+                logger.info("找到 XML 映射文件：{}", xmlPath);
+                
+                // 使用 XMLMapperBuilder 解析 XML
+                org.apache.ibatis.builder.xml.XMLMapperBuilder xmlMapperBuilder = 
+                    new org.apache.ibatis.builder.xml.XMLMapperBuilder(
+                        xmlStream,
+                        configuration,
+                        xmlPath,
+                        configuration.getSqlFragments()
+                    );
+                
+                xmlMapperBuilder.parse();
+                logger.info("XML 映射文件加载成功");
+            } else {
+                logger.warn("未找到 XML 映射文件：{}, 将使用注解方式", xmlPath);
             }
 
             sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
 
-            logger.info("MyBatis配置初始化完成");
+            logger.info("MyBatis 配置初始化完成");
 
         } catch (Exception e) {
-            logger.error("MyBatis配置初始化失败", e);
-            throw new RuntimeException("MyBatis配置初始化失败", e);
+            logger.error("MyBatis 配置初始化失败", e);
+            throw new RuntimeException("MyBatis 配置初始化失败", e);
         }
     }
 

@@ -22,7 +22,7 @@ public class FileDownloadController {
     // 令牌缓存（生产环境应使用Redis等）
     private static final Map<String, Map<String, Object>> TOKEN_CACHE = new ConcurrentHashMap<>();
     
-    @GetMapping("/{token}")
+    @GetMapping("/token")
     public ResponseEntity<Resource> downloadFile(@PathVariable String token, HttpServletRequest request) {
         try {
             // 验证令牌

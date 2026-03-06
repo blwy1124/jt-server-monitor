@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="com.jt.plugins.mapper.SqlServerMetricsMapper">
@@ -73,5 +73,200 @@
         SELECT COUNT(*) as active_transactions
         FROM sys.dm_tran_active_transactions
     </select>
-    
+
+    <!-- 获取进程详细信息 -->
+    <select id="getProcessDetails" resultType="map">
+        SELECT TOP 100
+            s.session_id,
+            s.login_name,
+            s.host_name,
+            s.program_name,
+            DB_NAME(s.database_id) as database_name,
+            s.status,
+            ISNULL(r.command, 'sleeping') as command,
+            ISNULL(r.cpu_time, 0) as cpu_time,
+            ISNULL(r.reads, 0) as logical_reads,
+            ISNULL(r.writes, 0) as writes,
+            ISNULL(r.total_elapsed_time, 0) as elapsed_time,
+            ISNULL(st.text, '') as last_sql_text,
+            r.blocking_session_id,
+            r.wait_type,
+            r.wait_time,
+            r.start_time
+        FROM sys.dm_exec_sessions s
+        LEFT JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
+        OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) st
+        WHERE s.is_user_process = 1
+          AND s.session_id >= 50
+        ORDER BY ISNULL(r.cpu_time, 0) DESC
+    </select>
+
+    <!-- 获取锁信息（包含 SQL） -->
+    <select id="getLockInformation" resultType="map">
+        SELECT TOP 100
+            tl.request_session_id,
+            tl.resource_type,
+            tl.resource_description,
+            tl.request_mode,
+            tl.request_status,
+            DB_NAME(tl.resource_database_id) as database_name,
+            CASE
+                WHEN tl.resource_type = 'OBJECT' THEN OBJECT_NAME(tl.resource_associated_entity_id, tl.resource_database_id)
+                ELSE NULL
+            END as object_name,
+            ISNULL(wt.wait_duration_ms, 0) as wait_duration_ms,
+            ISNULL(st.text, '') as sql_text
+        FROM sys.dm_tran_locks tl
+        LEFT JOIN sys.dm_os_waiting_tasks wt ON tl.lock_owner_address = wt.resource_address
+        LEFT JOIN sys.dm_exec_requests r ON tl.request_session_id = r.session_id
+        OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) st
+        WHERE tl.resource_type IN ('OBJECT', 'PAGE', 'KEY', 'RID', 'DATABASE')
+          AND tl.request_status IN ('GRANT', 'WAIT')
+        ORDER BY ISNULL(wt.wait_duration_ms, 0) DESC
+    </select>
+
+    <!-- 获取指定会话的 SQL 语句 -->
+    <select id="getSessionSqlText" resultType="map">
+        SELECT
+            r.session_id,
+            st.text as sql_text,
+            st.dbid as database_id,
+            DB_NAME(st.dbid) as database_name,
+            r.status,
+            r.command,
+            r.cpu_time,
+            r.total_elapsed_time,
+            r.reads,
+            r.writes
+        FROM sys.dm_exec_requests r
+        CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) st
+        WHERE r.session_id = #{sessionId}
+    </select>
+
+    <!-- 获取阻塞链信息 -->
+    <select id="getBlockingChain" resultType="map">
+        WITH BlockingChain AS (
+            SELECT
+                r.session_id,
+                r.blocking_session_id,
+                r.wait_type,
+                r.wait_time,
+                r.wait_resource,
+                0 as level
+            FROM sys.dm_exec_requests r
+            WHERE r.blocking_session_id IS NOT NULL
+              AND r.blocking_session_id > 0
+            UNION ALL
+            SELECT
+                r2.session_id,
+                r2.blocking_session_id,
+                r2.wait_type,
+                r2.wait_time,
+                r2.wait_resource,
+                bc.level + 1
+            FROM sys.dm_exec_requests r2
+            INNER JOIN BlockingChain bc ON r2.session_id = bc.blocking_session_id
+            WHERE r2.blocking_session_id IS NOT NULL
+        )
+        SELECT TOP 50
+            bc.session_id,
+            bc.blocking_session_id,
+            bc.wait_type,
+            bc.wait_time,
+            bc.wait_resource,
+            bc.level,
+            s.login_name,
+            s.host_name,
+            s.program_name,
+            DB_NAME(s.database_id) as database_name,
+            ISNULL(r.command, 'sleeping') as command,
+            ISNULL(st.text, '') as sql_text
+        FROM BlockingChain bc
+        LEFT JOIN sys.dm_exec_sessions s ON bc.session_id = s.session_id
+        LEFT JOIN sys.dm_exec_requests r ON bc.session_id = r.session_id
+        OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) st
+        ORDER BY bc.level DESC, bc.wait_time DESC
+    </select>
+
+    <!-- 获取活动连接列表 -->
+    <select id="getActiveConnections" resultType="map">
+        SELECT TOP 100
+            s.session_id,
+            s.login_name,
+            s.host_name,
+            s.program_name,
+            s.status,
+            DB_NAME(s.database_id) as database_name,
+            s.login_time,
+            s.cpu_time,
+            s.reads,
+            s.writes,
+            s.logical_reads,
+            r.status as request_status,
+            r.command,
+            r.cpu_time as request_cpu_time,
+            r.total_elapsed_time,
+            r.wait_type,
+            r.wait_time,
+            r.blocking_session_id,
+            ISNULL(st.text, '') as sql_text
+        FROM sys.dm_exec_sessions s
+        LEFT JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
+        OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) st
+        WHERE s.is_user_process = 1
+          AND s.session_id >= 50
+        ORDER BY s.cpu_time DESC
+    </select>
+
+    <!-- 按程序名称和 SQL 分组统计连接 -->
+    <select id="getConnectionsGroupedByProgramAndSql" resultType="map">
+        SELECT
+            ISNULL(s.program_name, 'Unknown') as program_name,
+            ISNULL(LEFT(st.text, 200), '') as sql_text,
+            DB_NAME(s.database_id) as database_name,
+            COUNT(*) as connection_count,
+            SUM(CASE WHEN s.status = 'running' THEN 1 ELSE 0 END) as running_count,
+            SUM(CASE WHEN s.status = 'sleeping' THEN 1 ELSE 0 END) as sleeping_count,
+            SUM(CASE WHEN r.session_id IS NOT NULL THEN 1 ELSE 0 END) as active_request_count,
+            AVG(s.cpu_time) as avg_cpu_time,
+            SUM(s.cpu_time) as total_cpu_time,
+            AVG(s.reads) as avg_reads,
+            SUM(s.reads) as total_reads,
+            AVG(s.writes) as avg_writes,
+            SUM(s.writes) as total_writes,
+            AVG(s.logical_reads) as avg_logical_reads,
+            SUM(s.logical_reads) as total_logical_reads,
+            MAX(r.cpu_time) as max_cpu_time,
+            MAX(r.total_elapsed_time) as max_elapsed_time,
+            MIN(s.login_time) as first_login_time,
+            MAX(s.last_request_end_time) as last_request_time
+        FROM sys.dm_exec_sessions s
+        LEFT JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
+        OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) st
+        WHERE s.is_user_process = 1
+          AND s.session_id >= 50
+        GROUP BY
+            s.program_name,
+            LEFT(st.text, 200),
+            DB_NAME(s.database_id)
+        ORDER BY total_cpu_time DESC
+    </select>
+
+    <!-- 获取最耗资源的 SQL TOP 10 -->
+    <select id="getTopResourceConsumingSql" resultType="map">
+        SELECT TOP 10
+            qs.execution_count,
+                qs.total_worker_time as total_cpu_time,
+               qs.total_elapsed_time,
+               qs.total_logical_reads,
+               qs.total_logical_writes,
+               qs.last_execution_time,
+               st.text as sql_text,
+               DB_NAME(st.dbid) as database_name,
+               qs.total_worker_time / qs.execution_count as avg_cpu_time,
+               qs.total_elapsed_time / qs.execution_count as avg_elapsed_time
+        FROM sys.dm_exec_query_stats qs
+            CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) st
+        ORDER BY qs.total_worker_time DESC
+    </select>
 </mapper>

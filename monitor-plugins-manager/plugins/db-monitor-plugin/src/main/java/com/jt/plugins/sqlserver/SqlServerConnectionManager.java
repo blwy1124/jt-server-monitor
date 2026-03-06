@@ -1,6 +1,4 @@
-// 文件路径: D:\IdeaProject\jt-server-monitor\monitor-plugins-manager\plugins\db-monitor-plugin\src\main\java\com\jt\plugin\sqlserver\SqlServerConnectionManager.java
-
-package com.jt.plugins.utils;
+package com.jt.plugins.sqlserver;
 
 import com.jt.plugins.common.log.PluginLogger;
 import org.apache.commons.dbcp2.BasicDataSource;

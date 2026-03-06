@@ -1,5 +1,3 @@
-// 文件路径: D:\IdeaProject\jt-server-monitor\monitor-plugins-manager\plugins\db-monitor-plugin\src\main\java\com\jt\plugin\mapper\SqlServerMetricsMapper.java
-
 package com.jt.plugins.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
@@ -8,43 +6,54 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * SQL Server监控数据Mapper接口
+ * SQL Server 监控数据 Mapper 接口
  */
 @Mapper
 public interface SqlServerMetricsMapper {
     
-    /**
-     * 获取进程信息统计
-     */
+    // ========== 汇总统计 ==========
     Map<String, Object> getProcessInfo();
-    
-    /**
-     * 获取等待统计信息
-     */
     Map<String, Object> getWaitStats();
-    
-    /**
-     * 获取性能计数器数据
-     */
     List<Map<String, Object>> getPerformanceCounters();
-    
-    /**
-     * 获取内存使用统计
-     */
     Map<String, Object> getMemoryStats();
-    
-    /**
-     * 获取I/O统计信息
-     */
     Map<String, Object> getIOStats();
-    
-    /**
-     * 获取CPU使用率（通过活动请求估算）
-     */
     Double getCpuUsagePercent();
+    Integer getActiveTransactions();
+    
+    // ========== 详细信息（新增） ==========
     
     /**
-     * 获取活跃事务数
+     * 获取进程详细信息列表
      */
-    Integer getActiveTransactions();
+    List<Map<String, Object>> getProcessDetails();
+    
+    /**
+     * 获取锁信息列表
+     */
+    List<Map<String, Object>> getLockInformation();
+    
+    /**
+     * 获取指定会话的 SQL 语句
+     */
+    Map<String, Object> getSessionSqlText(Integer sessionId);
+    
+    /**
+     * 获取阻塞链信息
+     */
+    List<Map<String, Object>> getBlockingChain();
+    
+    /**
+     * 获取最耗资源的 SQL TOP 10
+     */
+    List<Map<String, Object>> getTopResourceConsumingSql();
+    
+    /**
+     * 获取活动连接列表
+     */
+    List<Map<String, Object>> getActiveConnections();
+    
+    /**
+     * 按程序名称和 SQL 分组统计连接
+     */
+    List<Map<String, Object>> getConnectionsGroupedByProgramAndSql();
 }

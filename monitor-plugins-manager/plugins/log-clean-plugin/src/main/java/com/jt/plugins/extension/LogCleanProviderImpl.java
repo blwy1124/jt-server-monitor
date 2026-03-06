@@ -109,7 +109,65 @@ public class LogCleanProviderImpl implements LogCleanProvider {
             return ResultMsg.fail("处理ping请求失败：" + e.getMessage());
         }
     }
-
+    /**
+     * 处理日志内容去重清洗请求
+     *
+     * @param request 请求参数：
+     *                - sourceFilePaths: 源文件路径列表（逗号分隔，如"/var/log/app.log,/var/log/system.log"）
+     *                - outputDir: 输出目录（可选，未指定则使用默认目录）
+     *                - timeWindowSeconds: 时间窗口（秒，可选，用于智能合并相邻时间段的重复日志）
+     *                - separateFiles: 是否分别输出多个文件（true/false，默认true）
+     *                - returnCompressedFile: 是否返回压缩文件内容（true/false，默认 false）
+     *                - returnDownloadToken: 是否返回下载令牌（true/false，默认 false，优先级高于 returnCompressedFile）
+     *
+     * @return 去重后的文件信息和统计结果
+     *
+     * 返回数据结构说明：
+     * {
+     *   "outputDir": "/storage/log-clean-plugin/deduplicated_logs",  // 输出去重文件的目录
+     *   "fileResults": [                                             // 每个文件的处理结果数组
+     *     {
+     *       "sourceFile": "/var/log/app.log",                        // 源文件路径
+     *       "deduplicatedFile": "/storage/.../2026-03-05Log_deduplicated.txt", // 去重后文件路径
+     *       "originalLines": 1500,                                   // 原始行数
+     *       "deduplicatedLines": 450,                                // 去重后行数
+     *       "duplicateRate": 70.0,                                   // 重复率 (%)
+     *       "removedLines": 1050,                                    // 删除的重复行数
+     *       "timeWindowUsed": -1,                                    // 使用的时间窗口（秒）
+     *       "processingTime": 125                                    // 处理耗时 (毫秒)
+     *     }
+     *   ],
+     *   "totalFiles": 2,                                             // 处理的文件总数
+     *   "timeWindowSeconds": -1,                                     // 配置的时间窗口
+     *   "separateFiles": true,                                       // 是否分别输出
+     *   "returnCompressedFile": false,                               // 是否返回压缩文件
+     *   "returnDownloadToken": false,                                // 是否返回下载令牌
+     *
+     *   // 【以下字段根据请求参数动态返回】
+     *
+     *   // 情况 1：returnDownloadToken=true 时返回
+     *   "downloadToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",  // 下载令牌（UUID 字符串）
+     *   "downloadUrl": "/api/download/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", // 完整下载 URL
+     *   "compressedFileName": "deduplicated_logs_1772700000000.zip", // 压缩包文件名
+     *   "compressedFileSize": 15678,                                 // 压缩包大小 (字节)
+     *   "contentType": "application/zip",                            // 文件 MIME 类型
+     *   "expiresIn": 3600,                                           // 令牌过期时间 (秒)
+     *
+     *   // 情况 2：returnCompressedFile=true 且文件<50MB 时返回
+     *   "compressedFileContent": "UEsDBBQAAAAIAA...",                  // Base64 编码的压缩包内容
+     *   "compressedFileName": "deduplicated_logs_1772700000000.zip", // 压缩包文件名
+     *   "compressedFileSize": 15678,                                 // 压缩包大小 (字节)
+     *   "contentType": "application/zip",                            // 文件 MIME 类型
+     *
+     *   // 情况 3：returnCompressedFile=true 但文件>=50MB 时返回
+     *   "warning": "文件较大 (52MB)，建议使用下载令牌方式",             // 警告信息
+     *   "downloadToken": "...",                                      // 推荐使用下载令牌
+     *   "downloadUrl": "...",
+     *
+     *   // 通用字段
+     *   "details": "清理完成（修改时间在 2026-03-05 10:00:00 之前），删除了 1050 个文件和 5 个文件夹，总大小：1.2 GB" // 详细处理描述
+     * }
+     */
     /**
      * 处理日志内容去重清洗请求
      * @param request
@@ -297,8 +355,41 @@ public class LogCleanProviderImpl implements LogCleanProvider {
 
     /**
      * 处理文件夹清理请求
-     * @param request
-     * @return
+     *
+     * @param request 请求参数：
+     *                - folderPath: 要清理的文件夹路径
+     *                - cleanMode: 清理模式（beforeTime=按时间清理，entire=清空整个文件夹）
+     *                - cutoffTime: 截止时间戳（毫秒，cleanMode=beforeTime 时使用）
+     *                - daysAgo: 多少天以前（天数，优先级高于 cutoffTime）
+     *                - recursive: 是否递归清理子文件夹（true/false，默认true）
+     *                - checkModifiedTime: 检查哪种时间（true=修改时间，false=创建时间，默认true）
+     *                - returnDetails: 是否返回详细信息（true/false，默认true）
+     *
+     * @return 清理结果的统计信息
+     *
+     * 返回数据结构说明：
+     * {
+     *   "folderPath": "/var/logs/app",                               // 清理的文件夹路径
+     *   "cleanMode": "beforeTime",                                   // 使用的清理模式
+     *   "recursive": true,                                           // 是否递归清理
+     *
+     *   // 【时间相关字段 - 根据 cleanMode 和参数动态返回】
+     *   "daysAgo": "7",                                              // 配置的天数（如果使用）
+     *   "calculatedCutoffTime": 1772096400000,                       // 计算出的截止时间戳
+     *   "cutoffTime": "1772096400000",                               // 配置的截止时间戳（如果使用）
+     *   "checkModifiedTime": true,                                   // 是否检查修改时间
+     *   "timeType": "修改时间",                                        // 时间类型描述
+     *
+     *   // 【清理结果统计】
+     *   "deletedFiles": 156,                                         // 删除的文件数量
+     *   "deletedFolders": 12,                                        // 删除的文件夹数量
+     *   "totalSize": 1258291200,                                     // 删除的总字节数
+     *   "processingTime": 2345,                                      // 处理耗时 (毫秒)
+     *   "cleanTime": 1772700000000,                                  // 清理操作完成时间戳
+     *
+     *   // 【详细信息 - returnDetails=true 时返回】
+     *   "details": "清理完成（修改时间在 7 天以前），删除了 156 个文件和 12 个文件夹，总大小：1.2 GB"
+     * }
      */
     @ActionHandler("cleanFolder")
     public ResultMsg<JSONObject> handleCleanFolder(ExtensionRequestParam request) {

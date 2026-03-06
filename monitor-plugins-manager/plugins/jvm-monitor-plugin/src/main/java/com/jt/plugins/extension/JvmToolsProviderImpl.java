@@ -114,7 +114,25 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
     }
 
     /**
-     * 获取当前服务器所有Java进程信息（PID、进程名称等）
+     * 获取当前服务器所有 Java 进程信息（PID、进程名称等）
+     *
+     * @param request 请求参数（无特殊参数）
+     * @return 所有可连接的 Java 进程列表
+     *
+     * 返回数据结构说明：
+     * {
+     *   "processes": [                       // Java 进程数组
+     *     {
+     *       "pid": "12345",                  // 进程 ID
+     *       "displayName": "com.example.Main" // 进程显示名称（主类名或 JAR 路径）
+     *     },
+     *     {
+     *       "pid": "67890",
+     *       "displayName": "org.apache.catalina.startup.Bootstrap"
+     *     }
+     *   ],
+     *   "total": 2                           // Java 进程总数
+     * }
      */
     @ActionHandler("getJavaProcesses")
     private ResultMsg<JSONObject> handleGetJavaProcesses(ExtensionRequestParam request) {
@@ -151,9 +169,60 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
     }
 
     /**
-     * 获取目标JVM进程详细信息（堆内存/线程/CPU等）
-     * 参数说明：
-     * - pid: 目标进程ID（特殊值"self"表示当前进程）
+     * 获取目标 JVM 进程详细信息（堆内存/线程/CPU 等）
+     *
+     * @param request 请求参数：
+     *                - pid: 目标进程 ID（特殊值"self"表示当前进程）
+     * @return 目标 JVM 的详细运行状态信息
+     *
+     * 返回数据结构说明：
+     * {
+     *   "memoryUsage": {                     // 内存使用情况
+     *       "heapMemoryUsage": {             // 堆内存使用情况
+     *           "init": 268435456,           // 初始堆大小 (字节)
+     *           "used": 157834256,           // 已使用堆大小 (字节)
+     *           "committed": 268435456,      // 已提交堆大小 (字节)
+     *           "max": 3817865216            // 最大堆大小 (字节)
+     *       },
+     *       "nonHeapMemoryUsage": {          // 非堆内存使用情况
+     *           "init": 2555904,             // 初始非堆大小 (字节)
+     *           "used": 45678912,            // 已使用非堆大小 (字节)
+     *           "committed": 48234496,       // 已提交非堆大小 (字节)
+     *           "max": -1                    // 最大非堆大小 (-1 表示无限制)
+     *       },
+     *       "heapMemoryUsagePercent": 41.4   // 堆内存使用百分比 (%)
+     *   },
+     *   "threadCount": 45,                   // 活跃线程数
+     *   "daemonThreadCount": 38,             // 守护线程数
+     *   "peakThreadCount": 52,               // 峰值线程数
+     *   "totalStartedThreadCount": 128,      // 累计启动的线程总数
+     *   "cpuLoad": {
+     *       "processCpuLoad": 0.025,         // 进程 CPU 使用率 (0-1 之间，乘以 100 得百分比)
+     *       "systemCpuLoad": 0.15            // 系统 CPU 使用率 (0-1 之间)
+     *   },
+     *   "uptime": 1234567890,                // JVM 运行时间 (毫秒)
+     *   "gcInfo": {                          // GC 信息
+     *       "youngGenCollectors": [          // 新生代 GC 收集器
+     *           {
+     *               "name": "G1 Young Generation",
+     *               "collectionCount": 125,  // 收集次数
+     *               "collectionTime": 2345   // 收集总耗时 (毫秒)
+     *           }
+     *       ],
+     *       "oldGenCollectors": [            // 老年代 GC 收集器
+     *           {
+     *               "name": "G1 Old Generation",
+     *               "collectionCount": 5,
+     *               "collectionTime": 1234
+     *           }
+     *       ]
+     *   },
+     *   "classLoading": {                    // 类加载信息
+     *       "loadedClassCount": 12345,       // 当前已加载类数量
+     *       "totalLoadedClassCount": 15678,  // 累计加载类总数
+     *       "unloadedClassCount": 3333       // 已卸载类数量
+     *   }
+     * }
      */
     @ActionHandler("getJvmInfo")
     private ResultMsg<JSONObject> handleGetJvmInfo(ExtensionRequestParam request) {
@@ -192,9 +261,18 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
     }
 
     /**
-     * 触发目标JVM进程GC
-     * 参数说明：
-     * - pid: 目标进程ID（特殊值"self"表示当前进程）
+     * 触发目标 JVM 进程 GC
+     *
+     * @param request 请求参数：
+     *                - pid: 目标进程 ID（特殊值"self"表示当前进程）
+     * @return 操作结果（无额外数据）
+     *
+     * 返回数据结构说明：
+     * {
+     *   // 成功时返回空对象，message 中显示成功信息
+     * }
+     *
+     * 注意：GC 操作是异步的，无法立即看到效果。建议调用后等待几秒再调用 getJvmInfo 查看内存变化。
      */
     @ActionHandler("triggerGC")
     private ResultMsg<JSONObject> handleTriggerGC(ExtensionRequestParam request) {
@@ -233,11 +311,24 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
     }
 
     /**
-     * Dump目标JVM进程堆内存
-     * 参数说明：
-     * - pid: 目标进程ID（特殊值"self"表示当前进程）
-     * - filePath: 堆文件保存路径（如"D:/dump/heap.bin"，未传入则使用默认路径）
-     * - live: 是否只Dump存活对象（true/false，默认true）
+     * Dump 目标 JVM 进程堆内存
+     *
+     * @param request 请求参数：
+     *                - pid: 目标进程 ID（特殊值"self"表示当前进程）
+     *                - filePath: 堆文件保存路径（如"D:/dump/heap.bin"，未传入则使用默认路径）
+     *                - live: 是否只Dump存活对象（true/false，默认true）
+     * @return 生成的堆转储文件路径
+     *
+     * 返回数据结构说明：
+     * {
+     *   "dumpPath": "D:\\storage\\jvm-monitor-plugin\\heap_dump_12345_1772700000000.hprof"
+     *              // 堆转储文件的完整路径
+     * }
+     *
+     * 注意：
+     * - 生成的文件是 HPROF 二进制格式，可用 MAT、JVisualVM 等工具分析
+     * - live=true 时只会 dump存活的对象，文件较小但需要暂停 JVM
+     * - live=false 时会 dump 所有对象（包括垃圾），文件较大但不需要暂停 JVM
      */
     @ActionHandler("dumpHeap")
     private ResultMsg<JSONObject> handleDumpHeap(ExtensionRequestParam request) {
@@ -300,10 +391,20 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
         }
     }
 
+
     /**
-     * 获取目标JVM进程活跃线程数量
-     * 参数说明：
-     * - pid: 目标进程ID（特殊值"self"表示当前进程）
+     * 获取目标 JVM 进程活跃线程数量
+     *
+     * @param request 请求参数：
+     *                - pid: 目标进程 ID（特殊值"self"表示当前进程）
+     * @return 活跃线程数量
+     *
+     * 返回数据结构说明：
+     * {
+     *   "activeThreadCount": 45              // 当前活跃线程数
+     * }
+     *
+     * 注意：活跃线程数包括守护线程和非守护线程
      */
     @ActionHandler("getActiveThreadCount")
     private ResultMsg<JSONObject> handleGetActiveThreadCount(ExtensionRequestParam request) {
@@ -346,16 +447,48 @@ public class JvmToolsProviderImpl implements JvmToolsProvider {
     }
 
     /**
-     * 获取某个时间段的GC信息日志
-     * 支持两种时间格式：
-     * 1. 相对时间：hoursAgo（多少小时以前）
-     * 2. 绝对时间：startTime和endTime（具体时间戳）
-     * 
-     * 参数说明：
-     * - pid: 目标进程ID（特殊值"self"表示当前进程）
-     * - hoursAgo: 相对时间，多少小时以前（优先级高于startTime/endTime）
-     * - startTime: 开始时间戳（毫秒）
-     * - endTime: 结束时间戳（毫秒，默认为当前时间）
+     * 获取某个时间段的 GC 信息日志
+     *
+     * @param request 请求参数（支持两种时间格式）：
+     *                【方式 1 - 相对时间】
+     *                - hoursAgo: 多少小时以前（优先级高于 startTime/endTime）
+     *
+     *                【方式 2 - 绝对时间】
+     *                - pid: 目标进程 ID（特殊值"self"表示当前进程）
+     *                - startTime: 开始时间戳（毫秒）
+     *                - endTime: 结束时间戳（毫秒，默认为当前时间）
+     *
+     * @return 指定时间段内的 GC 统计信息
+     *
+     * 返回数据结构说明：
+     * {
+     *   "gcEvents": [                        // GC 事件数组
+     *     {
+     *       "timestamp": 1772700000000,      // GC 发生时间戳 (毫秒)
+     *       "gcType": "Young",               // GC 类型 (Young/Old/Full)
+     *       "duration": 15.5,                // GC 持续时间 (毫秒)
+     *       "beforeHeapUsed": 512000000,     // GC 前堆使用量 (字节)
+     *       "afterHeapUsed": 128000000,      // GC 后堆使用量 (字节)
+     *       "freedMemory": 384000000,        // 释放的内存 (字节)
+     *       "cause": "Allocation Failure"    // GC 触发原因
+     *     }
+     *   ],
+     *   "summary": {                         // 汇总统计
+     *       "totalGcCount": 125,             // GC 总次数
+     *       "youngGcCount": 120,             // Young GC 次数
+     *       "oldGcCount": 5,                 // Old GC 次数
+     *       "fullGcCount": 0,                // Full GC 次数
+     *       "totalGcTime": 2345,             // GC 总耗时 (毫秒)
+     *       "avgGcTime": 18.76,              // 平均 GC 耗时 (毫秒)
+     *       "maxGcTime": 156.3,              // 最长 GC 耗时 (毫秒)
+     *       "totalFreedMemory": 45678912345  // 释放的总内存 (字节)
+     *   },
+     *   "timeRange": {                       // 时间范围
+     *       "startTime": 1772696400000,      // 开始时间戳
+     *       "endTime": 1772700000000,        // 结束时间戳
+     *       "description": "2026-03-05 10:00:00 到 2026-03-05 11:00:00 (持续时间：1 小时 0 分钟)"
+     *   }
+     * }
      */
     @ActionHandler("getGcLogInfo")
     private ResultMsg<JSONObject> handleGetGcLogInfo(ExtensionRequestParam request) {

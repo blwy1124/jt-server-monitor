@@ -20,6 +20,7 @@
         <module>jvm-monitor-plugin</module>
         <module>log-clean-plugin</module>
         <module>db-monitor-plugin</module>
+        <module>service-config-plugin</module>
     </modules>
 
     <properties>

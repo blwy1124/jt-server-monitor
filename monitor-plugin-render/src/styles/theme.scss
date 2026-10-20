@@ -1,0 +1,199 @@
+/* ============================================================
+ * jt-server-monitor 后台管理系统主题
+ * 设计思路：
+ * - 色彩系统：主色 #409EFF / #337ecc（深蓝渐变侧栏）、强调色 #17b3a3（运营绿）、
+ *   背景灰 #f2f4f8、卡片白、辅助文字 #909399、主要文字 #303133
+ * - 排版：标题 18px/22px，正文 14px，辅助 13px；表格 14px；行高 1.6
+ * - 组件：Element UI 卡片、表格、按钮统一圆角、边框、间距
+ * ============================================================ */
+
+/* ------- CSS 变量（CSS Custom Properties）便于组件内联使用 ------- */
+:root {
+  --primary: #337ecc;
+  --primary-light: #409EFF;
+  --primary-dark: #2b6cb0;
+  --success: #17b3a3;
+  --warning: #e6a23c;
+  --danger: #f56c6c;
+  --info: #909399;
+
+  --bg-page: #f2f4f8;
+  --bg-card: #ffffff;
+  --border-color: #dcdfe6;
+
+  --text-primary: #303133;
+  --text-regular: #606266;
+  --text-secondary: #909399;
+
+  --sidebar-bg: #263445;
+  --sidebar-menu-text: #bfcbd9;
+  --sidebar-menu-hover: rgba(255, 255, 255, 0.08);
+  --sidebar-menu-active: #409EFF;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  --shadow-card: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+  --shadow-light: 0 1px 6px rgba(0, 0, 0, 0.06);
+}
+
+/* ------- 全局 reset ------- */
+html, body, #app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Avenir', 'PingFang SC', 'Microsoft YaHei', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  background-color: var(--bg-page);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ------- 页面级容器（Layout 子页面用） ------- */
+.page-wrap {
+  padding: 16px;
+}
+
+.page-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.page-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.page-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-left: 8px;
+  border-left: 3px solid var(--primary);
+}
+
+/* ------- 页面内统计卡片 ------- */
+.stat-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+  height: 100%;
+}
+
+.stat-card__title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.stat-card__value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* ------- 覆盖 Element UI 常用样式 ------- */
+.el-table {
+  font-size: 14px;
+}
+
+.el-table th {
+  background-color: #fafbfc !important;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.el-table .el-table__header-wrapper th {
+  background-color: #fafbfc;
+}
+
+.el-button--primary {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background-color: var(--primary-light);
+  border-color: var(--primary-light);
+}
+
+/* 标签徽章颜色统一 */
+.tag-started   { color: var(--success); }
+.tag-stopped   { color: var(--warning); }
+.tag-created,
+.tag-resolved,
+.tag-loaded    { color: var(--primary); }
+.tag-disabled  { color: var(--danger); }
+
+/* 状态徽章通用 */
+.status-badge {
+  display: inline-block;
+  padding: 0 10px;
+  height: 22px;
+  line-height: 22px;
+  font-size: 12px;
+  border-radius: 11px;
+  background: #eef2f7;
+  color: var(--text-regular);
+  font-weight: 500;
+}
+
+/* 工具栏按钮间距 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* 描述列表 */
+.desc-list {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-regular);
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 页面加载遮罩 */
+.page-loading {
+  min-height: 200px;
+}
+
+/* ------- 过渡动画 ------- */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.fade-enter,
+.fade-leave-to {
+  opacity: 0;
+}
